@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { DataTable, SearchBar, Modal, Button, Input, Select, TextArea, Header, FileUpload, NotificationManager, BulkUpload, ConfirmModal, Tabs, TabPanel } from "@/components/admin";
 import { motion } from "framer-motion";
 
@@ -34,8 +35,6 @@ interface Paciente {
 
 export default function PacientesPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPaciente, setSelectedPaciente] = useState<Paciente | null>(null);
@@ -53,7 +52,6 @@ export default function PacientesPage() {
 
   useEffect(() => {
     checkAuth();
-    loadPacientes();
   }, []);
 
   async function checkAuth() {
@@ -64,26 +62,24 @@ export default function PacientesPage() {
     }
   }
 
-  async function loadPacientes() {
-    const query = supabase
-      .from("pacientes")
-      .select("*")
-      .order("nombre_completo", { ascending: true });
+  // TanStack Query: Caché automático, recargas en background y manejo de estado de carga
+  const { data: pacientes = [], isLoading: loading, refetch: loadPacientes } = useQuery({
+    queryKey: ['pacientes', filtroEstado],
+    queryFn: async () => {
+      const query = supabase
+        .from("pacientes")
+        .select("*")
+        .order("nombre_completo", { ascending: true });
 
-    if (filtroEstado !== 'todos') {
-      query.eq("activo", filtroEstado === 'activo');
+      if (filtroEstado !== 'todos') {
+        query.eq("activo", filtroEstado === 'activo');
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as Paciente[];
     }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error("Error loading pacientes:", error);
-      return;
-    }
-
-    setPacientes(data || []);
-    setLoading(false);
-  }
+  });
 
   const filteredPacientes = pacientes.filter((p) =>
     p.nombre_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -140,7 +136,6 @@ export default function PacientesPage() {
               value={filtroEstado}
               onChange={(e) => {
                 setFiltroEstado(e.target.value as any);
-                setTimeout(loadPacientes, 100);
               }}
               options={[
                 { value: 'activo', label: 'Pacientes Activos' },
