@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef } from "react";
+import { Input as ShadcnInput } from "@/components/ui/input";
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -12,20 +13,16 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="mb-4">
         {label && (
-          <label className="block text-sm font-medium mb-1" style={{ color: "#3D2929" }}>
+          <label className="block text-sm font-medium mb-1 text-foreground">
             {label}
           </label>
         )}
-        <input
+        <ShadcnInput
           ref={ref}
-          className={`w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 transition-all ${className}`}
-          style={{
-            borderColor: error ? "#B85C5C" : "#E8C4C4",
-            backgroundColor: "#FFFFFF",
-          }}
+          className={`${error ? "border-destructive focus-visible:ring-destructive" : ""} ${className}`}
           {...props}
         />
-        {error && <p className="mt-1 text-sm" style={{ color: "#B85C5C" }}>{error}</p>}
+        {error && <p className="mt-1 text-sm text-destructive">{error}</p>}
       </div>
     );
   }

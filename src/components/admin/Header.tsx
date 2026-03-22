@@ -3,16 +3,6 @@
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/admin";
 
-const colors = {
-  primary: "#D4A5A5",
-  primaryLight: "#E8C4C4",
-  primaryDark: "#B88B8B",
-  background: "#FDF8F8",
-  surface: "#FFFFFF",
-  text: "#3D2929",
-  textMuted: "#7D6B6B",
-};
-
 interface HeaderProps {
   title: string;
   subtitle?: string;
@@ -24,15 +14,12 @@ export function Header({ title, subtitle, showBack = true, backTo = "/admin/dash
   const router = useRouter();
 
   return (
-    <header className="shadow" style={{ backgroundColor: colors.surface }}>
+    <header className="shadow bg-card">
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             {/* Logo con fondo blanco */}
-            <div
-              className="w-32 h-32 rounded-full flex items-center justify-center overflow-hidden"
-              style={{ backgroundColor: colors.surface, boxShadow: `0 8px 16px -4px rgba(0, 0, 0, 0.15)` }}
-            >
+            <div className="w-32 h-32 rounded-full flex items-center justify-center overflow-hidden bg-card shadow-[0_8px_16px_-4px_rgba(0,0,0,0.15)]">
               <img
                 src="/api/logo?v=6"
                 alt="LiliBauza Logo"
@@ -40,11 +27,11 @@ export function Header({ title, subtitle, showBack = true, backTo = "/admin/dash
               />
             </div>
             <div>
-              <h1 className="text-3xl font-bold" style={{ color: colors.text }}>
+              <h1 className="text-3xl font-bold text-foreground">
                 {title}
               </h1>
               {subtitle && (
-                <p style={{ color: colors.textMuted }}>{subtitle}</p>
+                <p className="text-muted-foreground">{subtitle}</p>
               )}
             </div>
           </div>

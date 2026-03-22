@@ -1,17 +1,12 @@
 "use client";
 
+import { Button as ShadcnButton } from "@/components/ui/button";
+
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "danger" | "ghost";
   size?: "sm" | "md" | "lg";
   children: React.ReactNode;
 }
-
-const colors = {
-  primary: "#D4A5A5",
-  secondary: "#C9B1B1",
-  danger: "#B85C5C",
-  ghost: "transparent",
-};
 
 export function Button({
   variant = "primary",
@@ -20,25 +15,29 @@ export function Button({
   className = "",
   ...props
 }: ButtonProps) {
-  const sizeClasses = {
-    sm: "px-3 py-1.5 text-sm",
-    md: "px-4 py-2 text-base",
-    lg: "px-6 py-3 text-lg",
+  // Map our custom sizes to Shadcn sizes
+  const sizeMap: Record<string, "default" | "sm" | "lg"> = {
+    sm: "sm",
+    md: "default",
+    lg: "lg",
   };
 
-  const baseStyles = "rounded-lg font-medium transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed";
+  // Map our custom variants to Shadcn variants
+  const variantMap: Record<string, "default" | "secondary" | "destructive" | "ghost"> = {
+    primary: "default",
+    secondary: "secondary",
+    danger: "destructive",
+    ghost: "ghost",
+  };
 
   return (
-    <button
-      className={`${baseStyles} ${sizeClasses[size]} ${className}`}
-      style={{
-        backgroundColor: variant === "ghost" ? "transparent" : colors[variant],
-        color: variant === "ghost" ? "#3D2929" : "#FFFFFF",
-        border: variant === "ghost" ? "1px solid #E8C4C4" : "none",
-      }}
+    <ShadcnButton
+      variant={variantMap[variant]}
+      size={sizeMap[size]}
+      className={className}
       {...props}
     >
       {children}
-    </button>
+    </ShadcnButton>
   );
 }

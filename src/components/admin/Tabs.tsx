@@ -2,16 +2,6 @@
 
 import { useState, ReactNode } from "react";
 
-const colors = {
-  primary: "#D4A5A5",
-  primaryLight: "#E8C4C4",
-  primaryDark: "#B88B8B",
-  background: "#FDF8F8",
-  surface: "#FFFFFF",
-  text: "#3D2929",
-  textMuted: "#7D6B6B",
-};
-
 interface Tab {
   id: string;
   label: string;
@@ -33,47 +23,40 @@ export function Tabs({ tabs, defaultTab, children }: TabsProps) {
     <div>
       {/* Tab Headers - Grid con columnas IGUALES */}
       <div
-        className="grid gap-1 mb-0"
+        className="grid gap-1 mb-0 border-b-4 border-ring"
         style={{
           gridTemplateColumns: `repeat(${tabs.length}, 1fr)`,
-          borderBottom: `3px solid ${colors.primaryDark}`,
         }}
       >
-        {tabs.map((tab) => (
-          <div key={tab.id}>
-            <button
-              onClick={() => setActiveTab(tab.id)}
-              className="w-full px-4 py-2 font-medium transition-all rounded-t-lg border-2"
-              style={{
-                backgroundColor: activeTab === tab.id ? colors.primary : colors.surface,
-                borderColor: activeTab === tab.id ? colors.primary : colors.primaryLight,
-                borderBottom: activeTab === tab.id ? `2px solid ${colors.surface}` : `2px solid ${colors.primaryLight}`,
-                marginBottom: activeTab === tab.id ? "-2px" : "0",
-                zIndex: activeTab === tab.id ? "10" : "1",
-                color: activeTab === tab.id ? "#FFFFFF" : "#7D6B6B",
-                fontWeight: activeTab === tab.id ? "600" : "400",
-                fontSize: "13px",
-                whiteSpace: "nowrap",
-              }}
-            >
-              <span className="mr-1">{tab.icon}</span>
-              {tab.label}
-            </button>
-          </div>
-        ))}
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <div key={tab.id}>
+              <button
+                onClick={() => setActiveTab(tab.id)}
+                className={`w-full px-4 py-2 font-medium transition-all rounded-t-lg border-2 ${
+                  isActive
+                    ? "bg-primary text-primary-foreground border-primary z-10 -mb-[2px]"
+                    : "bg-card text-muted-foreground border-border z-0 mb-0"
+                }`}
+                style={{
+                  borderBottom: isActive ? "2px solid var(--color-card, #FFFFFF)" : "2px solid var(--color-border, #E8C4C4)",
+                  fontSize: "13px",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <span className="mr-1">{tab.icon}</span>
+                {tab.label}
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       {/* Tab Content — altura fija para que NO cambie de tamaño entre pestañas */}
       <div
-        className="p-4 rounded-b-lg rounded-tr-lg"
-        style={{
-          backgroundColor: colors.surface,
-          border: `3px solid ${colors.primaryLight}`,
-          borderTop: "none",
-          boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-          height: "400px",
-          overflowY: "auto",
-        }}
+        className="p-4 rounded-b-lg rounded-tr-lg bg-card border-[3px] border-border border-t-0 shadow-md overflow-y-auto"
+        style={{ height: "400px" }}
       >
         {childrenArray.find((child) => (child as any).props?.tabId === activeTab)}
       </div>

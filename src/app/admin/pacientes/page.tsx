@@ -7,16 +7,17 @@ import { useQuery } from "@tanstack/react-query";
 import { DataTable, SearchBar, Modal, Button, Input, Select, TextArea, Header, FileUpload, NotificationManager, BulkUpload, ConfirmModal, Tabs, TabPanel } from "@/components/admin";
 import { motion } from "framer-motion";
 
+// Conectado al nuevo tema global de Shadcn
 const colors = {
-  primary: "#D4A5A5",
-  primaryLight: "#E8C4C4",
-  primaryDark: "#B88B8B",
-  secondary: "#C9B1B1",
-  accent: "#E5989B",
-  background: "#FDF8F8",
-  surface: "#FFFFFF",
-  text: "#3D2929",
-  textMuted: "#7D6B6B",
+  primary: "var(--primary, #D4A5A5)",
+  primaryLight: "var(--border, #E8C4C4)",
+  primaryDark: "var(--ring, #B88B8B)",
+  secondary: "var(--secondary, #C9B1B1)",
+  accent: "var(--accent, #E5989B)",
+  background: "var(--background, #FDF8F8)",
+  surface: "var(--card, #FFFFFF)",
+  text: "var(--foreground, #3D2929)",
+  textMuted: "var(--muted-foreground, #7D6B6B)",
 };
 
 interface Paciente {
@@ -113,7 +114,7 @@ export default function PacientesPage() {
   ];
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: colors.background }}>
+    <div className="min-h-screen bg-background">
       {/* Notificaciones */}
       <NotificationManager notifications={notifications} onRemove={removeNotification} />
 

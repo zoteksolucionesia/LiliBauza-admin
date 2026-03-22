@@ -22,19 +22,19 @@ export function Modal({ isOpen, onClose, title, children, size = "lg" }: ModalPr
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: "rgba(0, 0, 0, 0.30)" }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
     >
-      <div className={`w-full ${sizeClasses[size]} bg-white rounded-lg shadow-lg overflow-hidden flex flex-col`}
+      <div 
+        className={`w-full ${sizeClasses[size]} bg-card text-card-foreground rounded-lg shadow-lg overflow-hidden flex flex-col`}
         style={{ maxHeight: "90vh" }}
       >
-        <div className="flex items-center justify-between p-4 border-b flex-shrink-0" style={{ borderColor: "#E8C4C4" }}>
-          <h2 className="text-xl font-semibold" style={{ color: "#3D2929" }}>{title}</h2>
+        <div className="flex items-center justify-between p-4 border-b border-border flex-shrink-0">
+          <h2 className="text-xl font-semibold text-foreground">{title}</h2>
           <button
             onClick={onClose}
-            className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+            className="p-1 rounded-full stroke-muted-foreground hover:bg-muted transition-colors"
           >
-            <X className="w-6 h-6" style={{ color: "#7D6B6B" }} />
+            <X className="w-6 h-6" />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-4">

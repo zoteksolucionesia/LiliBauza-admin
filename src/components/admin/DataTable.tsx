@@ -1,6 +1,13 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface Column {
   key: string;
@@ -24,52 +31,47 @@ export function DataTable({
   emptyMessage = "No hay datos disponibles",
 }: DataTableProps) {
   return (
-    <div className="overflow-x-auto rounded-lg border" style={{ borderColor: "#E8C4C4" }}>
-      <table className="w-full">
-        <thead style={{ backgroundColor: "#FDF8F8" }}>
-          <tr>
+    <div className="rounded-md border border-border bg-card overflow-hidden">
+      <Table>
+        <TableHeader className="bg-muted/50">
+          <TableRow>
             {columns.map((col) => (
-              <th
-                key={col.key}
-                className="px-4 py-3 text-left text-sm font-semibold"
-                style={{ color: "#3D2929" }}
-              >
+              <TableHead key={col.key} className="font-semibold text-foreground">
                 {col.label}
-              </th>
+              </TableHead>
             ))}
-            {actions && <th className="px-4 py-3 text-right text-sm font-semibold" style={{ color: "#3D2929" }}>Acciones</th>}
-          </tr>
-        </thead>
-        <tbody>
+            {actions && <TableHead className="text-right font-semibold text-foreground">Acciones</TableHead>}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {data.length === 0 ? (
-            <tr>
-              <td colSpan={columns.length + (actions ? 1 : 0)} className="px-4 py-8 text-center" style={{ color: "#7D6B6B" }}>
+            <TableRow>
+              <TableCell colSpan={columns.length + (actions ? 1 : 0)} className="h-24 text-center text-muted-foreground">
                 {emptyMessage}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ) : (
             data.map((row, idx) => (
-              <tr
+              <TableRow
                 key={row.id || idx}
-                className="border-t hover:bg-opacity-50 transition-colors cursor-pointer"
-                style={{ borderColor: "#E8C4C444" }}
                 onClick={() => onRowClick?.(row)}
+                className={`transition-colors ${onRowClick ? "cursor-pointer hover:bg-muted/50" : ""}`}
               >
                 {columns.map((col) => (
-                  <td key={col.key} className="px-4 py-3 text-sm" style={{ color: "#3D2929" }}>
+                  <TableCell key={col.key} className="text-foreground">
                     {col.render ? col.render(row[col.key], row) : row[col.key]}
-                  </td>
+                  </TableCell>
                 ))}
                 {actions && (
-                  <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     {actions(row)}
-                  </td>
+                  </TableCell>
                 )}
-              </tr>
+              </TableRow>
             ))
           )}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
