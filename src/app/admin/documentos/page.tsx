@@ -5,40 +5,57 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import { DataTable, SearchBar, Modal, Button, Input, Select, TextArea, Header, FileUpload, NotificationManager, ConfirmModal } from "@/components/admin";
+import { 
+  DataTable, 
+  Modal, 
+  Button, 
+  TextArea, 
+  Header, 
+  NotificationManager, 
+  Tabs, 
+  TabPanel, 
+  GeneradorDocumentoModal, 
+  ConfirmModal,
+  EditorRico,
+  Input
+} from "@/components/admin";
 import { motion } from "framer-motion";
-import { FileText, FileCheck, FileBadge } from "lucide-react";
+import { FileText, FileCheck, FileBadge, Trash2, Eye } from "lucide-react";
 
 import { colors } from "@/lib/theme";
+
+interface Plantilla {
+  id: string;
+  tipo: string;
+  contenido_base: string;
+  updated_at: string;
+}
 
 interface Documento {
   id: string;
   paciente_id: string;
   tipo: "constancia" | "receta" | "diagnostico";
   titulo: string;
-  contenido: string;
   storage_url: string;
   created_at: string;
-  activo?: boolean;
-}
-
-interface Paciente {
-  id: string;
-  nombre_completo: string;
+  pacientes?: { nombre_completo: string };
 }
 
 export default function DocumentosPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
   const [documentos, setDocumentos] = useState<Documento[]>([]);
-  const [pacientes, setPacientes] = useState<Paciente[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedTipo, setSelectedTipo] = useState<"constancia" | "receta" | "diagnostico" | null>(null);
+  const [isGenModalOpen, setIsGenModalOpen] = useState(false);
+  const [selectedPlantilla, setSelectedPlantilla] = useState<Plantilla | null>(null);
+  
   const [selectedDoc, setSelectedDoc] = useState<Documento | null>(null);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
   const [notifications, setNotifications] = useState<Array<{ id: string; message: string; type: "success" | "error" | "info" }>>([]);
 
   const addNotification = (message: string, type: "success" | "error" | "info") => {
@@ -52,9 +69,14 @@ export default function DocumentosPage() {
 
   useEffect(() => {
     checkAuth();
-    loadDocumentos();
-    loadPacientes();
+    loadData();
   }, []);
+
+  async function loadData() {
+    setLoading(true);
+    await Promise.all([loadPlantillas(), loadDocumentos()]);
+    setLoading(false);
+  }
 
   async function checkAuth() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -64,112 +86,55 @@ export default function DocumentosPage() {
     }
   }
 
+  async function loadPlantillas() {
+    const { data, error } = await supabase
+      .from("plantillas_documentos")
+      .select("*")
+      .order("tipo", { ascending: true });
+
+    if (error) {
+      console.error("Error loading plantillas:", error);
+    } else {
+      setPlantillas(data || []);
+    }
+  }
+
   async function loadDocumentos() {
     const { data, error } = await supabase
       .from("documentos")
-      .select("*")
-      .in("tipo", ["constancia", "receta", "diagnostico"])
+      .select(`
+        *,
+        pacientes (nombre_completo)
+      `)
       .eq("activo", true)
       .order("created_at", { ascending: false });
 
     if (error) {
       console.error("Error loading documentos:", error);
-      return;
-    }
-
-    setDocumentos(data || []);
-    setLoading(false);
-  }
-
-  async function loadPacientes() {
-    const { data, error } = await supabase
-      .from("pacientes")
-      .select("id, nombre_completo")
-      .eq("activo", true)
-      .order("nombre_completo", { ascending: true });
-
-    if (!error && data) {
-      setPacientes(data);
+    } else {
+      setDocumentos(data || []);
     }
   }
 
-  const filteredDocumentos = documentos.filter((d) =>
-    d.titulo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    d.tipo.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const columns = [
-    {
-      key: "tipo",
-      label: "Tipo",
-      render: (value: string) => {
-        const icons = {
-          constancia: <FileText className="inline w-4 h-4 mr-1" />,
-          receta: <FileCheck className="inline w-4 h-4 mr-1" />,
-          diagnostico: <FileBadge className="inline w-4 h-4 mr-1" />,
-        };
-        return (
-          <span className="capitalize">
-            {icons[value as keyof typeof icons]}
-            {value}
-          </span>
-        );
-      },
-    },
-    { key: "titulo", label: "Título" },
-    {
-      key: "created_at",
-      label: "Fecha",
-      render: (value: string) => new Date(value).toLocaleDateString("es-MX"),
-    },
-  ];
-
-  const handleDelete = async (doc: Documento) => {
+  const handleDelete = (doc: Documento) => {
     setSelectedDoc(doc);
     setShowDeleteModal(true);
   };
 
   const confirmDelete = async () => {
     if (!selectedDoc) return;
-
     setDeleting(true);
-
-    // Optimistic update - remover de la lista inmediatamente
-    setDocumentos((prev) => prev.filter((d) => d.id !== selectedDoc.id));
-
     try {
-      // 1. Eliminar de Storage
-      const urlParts = selectedDoc.storage_url.split("/");
-      const fileName = urlParts[urlParts.length - 1];
-
-      console.log("Eliminando archivo del storage:", fileName);
-
-      const { error: storageError } = await supabase.storage
-        .from("documentos")
-        .remove([fileName]);
-
-      if (storageError) {
-        console.error("Error en storage:", storageError);
-        throw storageError;
-      }
-
-      // 2. Eliminar de la base de datos (soft delete)
-      const { error: dbError } = await supabase
+      const { error } = await supabase
         .from("documentos")
         .update({ activo: false })
         .eq("id", selectedDoc.id);
-
-      if (dbError) {
-        console.error("Error en DB:", dbError);
-        throw dbError;
-      }
-
-      addNotification("Documento eliminado", "success");
-    } catch (error: any) {
-      console.error("Error completo:", error);
-      addNotification(`Error: ${error.message}`, "error");
-      // Revertir el optimistic update si hubo error
+      
+      if (error) throw error;
+      addNotification("Documento eliminado correctamente", "success");
       loadDocumentos();
+    } catch (error: any) {
+      addNotification("Error al eliminar documento", "error");
     } finally {
       setDeleting(false);
       setShowDeleteModal(false);
@@ -177,120 +142,182 @@ export default function DocumentosPage() {
     }
   };
 
+  const plantillaColumns = [
+    {
+      key: "tipo",
+      label: "Tipo de Plantilla",
+      render: (value: string) => {
+        const icons = {
+          constancia: <FileText className="inline w-5 h-5 mr-2" style={{ color: colors.primary }} />,
+          receta: <FileCheck className="inline w-5 h-5 mr-2" style={{ color: colors.secondary }} />,
+          diagnostico: <FileBadge className="inline w-5 h-5 mr-2" style={{ color: colors.accent }} />,
+        };
+        return (
+          <span className="capitalize font-medium flex items-center">
+            {icons[value as keyof typeof icons]}
+            {value}
+          </span>
+        );
+      },
+    },
+    {
+      key: "updated_at",
+      label: "Última Actualización",
+      render: (value: string) => new Date(value).toLocaleDateString("es-MX", {
+        year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+      }),
+    },
+  ];
+
+  const documentoColumns = [
+    {
+      key: "titulo",
+      label: "Título",
+      render: (value: string) => <span className="font-medium">{value}</span>
+    },
+    {
+      key: "pacientes",
+      label: "Paciente",
+      render: (value: any) => value?.nombre_completo || "N/A"
+    },
+    {
+      key: "created_at",
+      label: "Fecha",
+      render: (value: string) => new Date(value).toLocaleDateString("es-MX")
+    }
+  ];
+
+  const tabsConfig = [
+    { id: "documentos", label: "Documentos", icon: "📄" },
+    { id: "plantillas", label: "Plantillas", icon: "⚙️" }
+  ];
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: colors.background }}>
       <NotificationManager notifications={notifications} onRemove={removeNotification} />
 
       <Header
-        title="Documentos"
-        subtitle="Constancias, recetas y diagnósticos"
+        title="Gestión de Documentos"
+        subtitle="Administra plantillas y visualiza documentos generados"
       />
 
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <SearchBar
-            placeholder="Buscar por paciente o tipo..."
-            value={searchTerm}
-            onChange={setSearchTerm}
-            onAdd={() => {
-              setSelectedTipo("constancia");
-              setIsModalOpen(true);
-            }}
-            addLabel="Documento"
-          />
+        <Tabs tabs={tabsConfig}>
+          <TabPanel tabId="documentos">
+            <div className="flex justify-end mb-4">
+              <Button onClick={() => setIsGenModalOpen(true)}>
+                ➕ Nuevo Documento
+              </Button>
+            </div>
+            
+            <DataTable
+              columns={documentoColumns}
+              data={documentos}
+              actions={(row) => (
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setSelectedDoc(row);
+                      setShowPdfModal(true);
+                    }}
+                  >
+                    <Eye className="w-4 h-4 mr-1" /> Ver
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() => handleDelete(row)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+              emptyMessage={loading ? "Cargando documentos..." : "No hay documentos generados aún."}
+            />
+          </TabPanel>
 
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <button
-              onClick={() => {
-                setSelectedTipo("constancia");
+          <TabPanel tabId="plantillas">
+            <div className="flex justify-end mb-4">
+              <Button onClick={() => {
+                setSelectedPlantilla(null);
                 setIsModalOpen(true);
-              }}
-              className="p-4 rounded-lg border-2 transition-all hover:shadow-md"
-              style={{ borderColor: colors.primary, backgroundColor: colors.surface }}
-            >
-              <FileText className="w-8 h-8 mx-auto mb-2" style={{ color: colors.primary }} />
-              <p className="font-medium" style={{ color: colors.text }}>Constancia</p>
-              <p className="text-xs" style={{ color: colors.textMuted }}>De participación o laboral</p>
-            </button>
-            <button
-              onClick={() => {
-                setSelectedTipo("receta");
-                setIsModalOpen(true);
-              }}
-              className="p-4 rounded-lg border-2 transition-all hover:shadow-md"
-              style={{ borderColor: colors.secondary, backgroundColor: colors.surface }}
-            >
-              <FileCheck className="w-8 h-8 mx-auto mb-2" style={{ color: colors.secondary }} />
-              <p className="font-medium" style={{ color: colors.text }}>Receta</p>
-              <p className="text-xs" style={{ color: colors.textMuted }}>Médica psicológica</p>
-            </button>
-            <button
-              onClick={() => {
-                setSelectedTipo("diagnostico");
-                setIsModalOpen(true);
-              }}
-              className="p-4 rounded-lg border-2 transition-all hover:shadow-md"
-              style={{ borderColor: colors.accent, backgroundColor: colors.surface }}
-            >
-              <FileBadge className="w-8 h-8 mx-auto mb-2" style={{ color: colors.accent }} />
-              <p className="font-medium" style={{ color: colors.text }}>Diagnóstico</p>
-              <p className="text-xs" style={{ color: colors.textMuted }}>Evaluación psicológica</p>
-            </button>
-          </div>
+              }}>
+                ➕ Nueva Plantilla
+              </Button>
+            </div>
 
-          <DataTable
-            columns={columns}
-            data={filteredDocumentos}
-            actions={(row) => (
-              <div className="flex gap-2 justify-end">
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setSelectedDoc(row);
-                    setShowPdfModal(true);
-                  }}
-                >
-                  📄 Ver
-                </Button>
-                <Button
-                  size="sm"
-                  variant="danger"
-                  onClick={() => handleDelete(row)}
-                >
-                  🗑️ Eliminar
-                </Button>
+            <div className="mb-6 p-4 rounded-lg flex items-start gap-3" style={{ backgroundColor: colors.surface, borderLeft: `4px solid ${colors.primary}` }}>
+              <span className="text-xl">💡</span>
+              <div>
+                <p className="font-medium" style={{ color: colors.text }}>Sobre las plantillas</p>
+                <p className="text-sm mt-1 leading-relaxed" style={{ color: colors.textMuted }}>
+                  Estas plantillas son el texto base que se usará al generar documentos.
+                  Puedes usar <strong style={{ color: colors.primary }}>[NOMBRE DEL PACIENTE]</strong> y <strong style={{ color: colors.primary }}>[FECHA]</strong> para que se autocompleten.
+                </p>
               </div>
-            )}
-            emptyMessage="No hay documentos generados"
-          />
-        </motion.div>
+            </div>
+
+            <DataTable
+              columns={plantillaColumns}
+              data={plantillas}
+              actions={(row) => (
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setSelectedPlantilla(row);
+                      setIsModalOpen(true);
+                    }}
+                  >
+                    ✏️ Editar Plantilla
+                  </Button>
+                </div>
+              )}
+              emptyMessage={loading ? "Cargando plantillas..." : "No se encontraron plantillas."}
+            />
+          </TabPanel>
+        </Tabs>
       </main>
 
       <Modal
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false);
-          setSelectedTipo(null);
+          setSelectedPlantilla(null);
         }}
-        title={selectedTipo ? `Nuevo ${selectedTipo.charAt(0).toUpperCase() + selectedTipo.slice(1)}` : "Documento"}
+        title={selectedPlantilla ? `Editar Plantilla: ${selectedPlantilla.tipo.charAt(0).toUpperCase()}${selectedPlantilla.tipo.slice(1)}` : "Nueva Plantilla"}
         size="xl"
       >
-        {selectedTipo && (
-          <DocumentoForm
-            tipo={selectedTipo}
-            pacientes={pacientes}
-            onClose={() => {
-              setIsModalOpen(false);
-              setSelectedTipo(null);
-              loadDocumentos();
-            }}
-          />
-        )}
+        <PlantillaForm
+          plantilla={selectedPlantilla}
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedPlantilla(null);
+          }}
+          onSuccess={() => {
+            addNotification(selectedPlantilla ? "Plantilla actualizada exitosamente" : "Plantilla creada exitosamente", "success");
+            setIsModalOpen(false);
+            setSelectedPlantilla(null);
+            loadPlantillas();
+          }}
+          onError={(err) => {
+            addNotification(`Error: ${err}`, "error");
+          }}
+        />
       </Modal>
+
+      <GeneradorDocumentoModal
+        isOpen={isGenModalOpen}
+        onClose={() => setIsGenModalOpen(false)}
+        onSuccess={() => {
+          addNotification("Documento generado exitosamente", "success");
+          setIsGenModalOpen(false);
+          loadDocumentos();
+        }}
+        onError={(err) => addNotification(`Error: ${err}`, "error")}
+      />
 
       <Modal
         isOpen={showPdfModal}
@@ -306,7 +333,7 @@ export default function DocumentosPage() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <p className="text-sm" style={{ color: colors.textMuted }}>
-                  <strong>Tipo:</strong> {selectedDoc.tipo}
+                  <strong>Paciente:</strong> {selectedDoc.pacientes?.nombre_completo}
                 </p>
                 <p className="text-sm" style={{ color: colors.textMuted }}>
                   <strong>Fecha:</strong> {new Date(selectedDoc.created_at).toLocaleDateString("es-MX")}
@@ -316,17 +343,17 @@ export default function DocumentosPage() {
                 href={selectedDoc.storage_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm px-3 py-1.5 rounded-lg font-medium text-white"
+                className="text-sm px-3 py-1.5 rounded-lg font-medium text-white transition-all hover:opacity-90"
                 style={{ backgroundColor: colors.primary }}
               >
                 📥 Descargar PDF
               </a>
             </div>
-            <div className="border rounded-lg overflow-hidden" style={{ borderColor: colors.primaryLight }}>
+            <div className="border rounded-lg overflow-hidden bg-gray-100" style={{ borderColor: colors.primaryLight }}>
               <iframe
                 src={selectedDoc.storage_url}
                 className="w-full"
-                style={{ height: "600px" }}
+                style={{ height: "70vh" }}
                 title="Visor de PDF"
               />
             </div>
@@ -337,9 +364,7 @@ export default function DocumentosPage() {
       <ConfirmModal
         isOpen={showDeleteModal}
         title="Eliminar Documento"
-        message={`¿Estás seguro de que deseas eliminar "${selectedDoc?.titulo}"? Esta acción no se puede deshacer.`}
-        confirmLabel="Eliminar"
-        cancelLabel="Cancelar"
+        message={`¿Estás seguro de que deseas eliminar "${selectedDoc?.titulo}"?`}
         onConfirm={confirmDelete}
         onCancel={() => {
           setShowDeleteModal(false);
@@ -351,105 +376,22 @@ export default function DocumentosPage() {
   );
 }
 
-interface DocumentoFormProps {
-  tipo: "constancia" | "receta" | "diagnostico";
-  pacientes: Paciente[];
+interface PlantillaFormProps {
+  plantilla: Plantilla | null;
   onClose: () => void;
+  onSuccess: () => void;
+  onError: (err: string) => void;
 }
 
-function DocumentoForm({ tipo, pacientes, onClose }: DocumentoFormProps) {
+function PlantillaForm({ plantilla, onClose, onSuccess, onError }: PlantillaFormProps) {
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    paciente_id: "",
-    titulo: "",
-    contenido: "",
-    notas: "",
-  });
-
-  const getTemplate = () => {
-    const paciente = pacientes.find((p) => p.id === formData.paciente_id);
-    const fecha = new Date().toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "numeric" });
-
-    if (tipo === "constancia") {
-      return `CONSTANCIA DE PARTICIPACIÓN
-
-Por medio de la presente, la Mtra. Liliana Bauza, psicóloga clínica certificada, hace CONSTAR QUE:
-
-${paciente?.nombre_completo || "[NOMBRE DEL PACIENTE]"}
-
-Ha participado en sesiones de terapia psicológica en mi consultorio particular.
-
-Esta constancia se expide a petición del interesado para los fines legales que le convengan.
-
-Ciudad de México, a ${fecha}.
-
-
-_________________________
-Mtra. Liliana Bauza`;
-    }
-
-    if (tipo === "receta") {
-      return `RECETA MÉDICA
-
-Mtra. Liliana Bauza
-
-Paciente: ${paciente?.nombre_completo || "[NOMBRE DEL PACIENTE]"}
-Fecha: ${fecha}
-
-INDICACIONES TERAPÉUTICAS:
-
-1. Continuar con sesiones de terapia psicológica
-
-2. [INDICACIONES ESPECÍFICAS]
-
-
-_________________________
-Mtra. Liliana Bauza`;
-    }
-
-    if (tipo === "diagnostico") {
-      return `INFORME DE EVALUACIÓN PSICOLÓGICA
-
-Mtra. Liliana Bauza
-
-DATOS GENERALES:
-Paciente: ${paciente?.nombre_completo || "[NOMBRE DEL PACIENTE]"}
-Fecha de evaluación: ${fecha}
-
-MOTIVO DE CONSULTA:
-[DESCRIPCIÓN]
-
-IMPRESIÓN DIAGNÓSTICA:
-[DIAGNÓSTICO]
-
-PLAN TERAPÉUTICO:
-[OBJETIVOS Y ESTRATEGIAS]
-
-
-_________________________
-Mtra. Liliana Bauza`;
-    }
-
-    return "";
-  };
-
-  const handleSelectTemplate = () => {
-    setFormData({
-      ...formData,
-      contenido: getTemplate(),
-      titulo: `${tipo} - ${pacientes.find((p) => p.id === formData.paciente_id)?.nombre_completo || "Sin nombre"}`,
-    });
-  };
+  const [tipo, setTipo] = useState<Plantilla["tipo"]>(plantilla?.tipo || "constancia");
+  const [contenido, setContenido] = useState(plantilla?.contenido_base || "");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.paciente_id) {
-      alert("Selecciona un paciente");
-      return;
-    }
-
-    if (!formData.contenido.trim()) {
+    if (!contenido.trim()) {
       alert("El contenido no puede estar vacío");
       return;
     }
@@ -457,41 +399,31 @@ Mtra. Liliana Bauza`;
     setLoading(true);
 
     try {
-      const blob = new Blob([formData.contenido], { type: "text/plain" });
-      const fileExt = "txt";
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      if (plantilla) {
+        // Update
+        const { error } = await supabase
+          .from("plantillas_documentos")
+          .update({
+            contenido_base: contenido,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", plantilla.id);
 
-      const { error: uploadError } = await supabase.storage
-        .from("documentos")
-        .upload(fileName, blob, {
-          cacheControl: "3600",
-          upsert: false,
-        });
+        if (error) throw error;
+      } else {
+        // Create
+        const { error } = await supabase
+          .from("plantillas_documentos")
+          .insert({
+            tipo,
+            contenido_base: contenido,
+          });
 
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from("documentos")
-        .getPublicUrl(fileName);
-
-      const { error: dbError } = await supabase.from("documentos").insert({
-        tipo,
-        paciente_id: formData.paciente_id,
-        titulo: formData.titulo,
-        contenido: formData.contenido,
-        storage_url: urlData.publicUrl,
-        activo: true,
-        creado_por: null,
-        created_at: new Date().toISOString(),
-        notas: formData.notas,
-      });
-
-      if (dbError) throw dbError;
-
-      alert("Documento generado exitosamente");
-      onClose();
+        if (error) throw error;
+      }
+      onSuccess();
     } catch (error: any) {
-      alert(`Error: ${error.message}`);
+      onError(error.message);
     } finally {
       setLoading(false);
     }
@@ -500,58 +432,39 @@ Mtra. Liliana Bauza`;
   return (
     <form onSubmit={handleSubmit}>
       <div className="grid grid-cols-1 gap-4">
-        <Select
-          label="Paciente"
-          value={formData.paciente_id}
-          onChange={(e) => setFormData({ ...formData, paciente_id: e.target.value })}
-          options={[
-            { value: "", label: "Seleccionar paciente..." },
-            ...pacientes.map((p) => ({ value: p.id, label: p.nombre_completo })),
-          ]}
-          required
-        />
-
-        <div className="flex gap-2 items-end">
-          <div className="flex-1">
+        {!plantilla && (
+          <div className="mb-4">
             <Input
-              label="Título del documento"
-              value={formData.titulo}
-              onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
-              placeholder={`Ej: Constancia - ${formData.paciente_id ? pacientes.find(p => p.id === formData.paciente_id)?.nombre_completo : "..."}`}
+              label="Nombre de la Plantilla"
+              value={tipo}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTipo(e.target.value)}
+              placeholder="Ej: Constancia Médica Básica"
+              required
             />
           </div>
-          <Button
-            type="button"
-            onClick={handleSelectTemplate}
-            disabled={!formData.paciente_id}
-          >
-            📋 Usar Plantilla
-          </Button>
+        )}
+
+        <EditorRico
+          label="Contenido de la Plantilla"
+          value={contenido}
+          onChange={setContenido}
+          placeholder="Escribe el texto de la plantilla aquí..."
+        />
+        
+        <div className="p-3 rounded-lg bg-blue-50 border border-blue-100 mt-8">
+          <p className="text-xs font-semibold text-blue-800 mb-1">💡 Variables dinámicas:</p>
+          <p className="text-xs text-blue-700 leading-relaxed">
+            Usa <code className="bg-white px-1 rounded border border-blue-200">[NOMBRE DEL PACIENTE]</code> para que se autocompleta con el nombre real y <code className="bg-white px-1 rounded border border-blue-200">[FECHA]</code> para la fecha actual.
+          </p>
         </div>
-
-        <TextArea
-          label="Contenido del Documento"
-          value={formData.contenido}
-          onChange={(e) => setFormData({ ...formData, contenido: e.target.value })}
-          rows={12}
-          placeholder="Selecciona un paciente y click en 'Usar Plantilla' para auto-llenar, o escribe el contenido manualmente..."
-        />
-
-        <TextArea
-          label="Notas internas (no se incluyen en el documento)"
-          value={formData.notas}
-          onChange={(e) => setFormData({ ...formData, notas: e.target.value })}
-          rows={2}
-          placeholder="Notas solo para uso interno..."
-        />
       </div>
 
-      <div className="flex gap-3 justify-end mt-4">
+      <div className="flex gap-3 justify-end mt-6">
         <Button type="button" variant="ghost" onClick={onClose}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={loading || !formData.contenido.trim()}>
-          {loading ? "Generando..." : "Generar Documento"}
+        <Button type="submit" disabled={!!(loading || !contenido.trim() || (plantilla && contenido === plantilla.contenido_base))}>
+          {loading ? "Guardando..." : plantilla ? "Guardar Cambios" : "Crear Plantilla"}
         </Button>
       </div>
     </form>

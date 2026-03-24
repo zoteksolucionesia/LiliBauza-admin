@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import { DataTable, SearchBar, Modal, Button, Input, Select, TextArea, Header, FileUpload, NotificationManager, BulkUpload, ConfirmModal, Tabs, TabPanel } from "@/components/admin";
+import { DataTable, SearchBar, Modal, Button, Input, Select, TextArea, Header, FileUpload, NotificationManager, BulkUpload, ConfirmModal, Tabs, TabPanel, GeneradorDocumentoModal } from "@/components/admin";
 import { motion } from "framer-motion";
 
 const colors = {
@@ -331,6 +331,7 @@ function PacienteDetalle({ paciente, onClose, addNotification }: { paciente: Pac
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDocumentoModal, setShowDocumentoModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [reloadTrigger, setReloadTrigger] = useState(0);
 
@@ -533,9 +534,11 @@ function PacienteDetalle({ paciente, onClose, addNotification }: { paciente: Pac
         <Tabs
           tabs={[
             { id: "datos", label: "Datos Generales", icon: "📋" },
-            { id: "documentos", label: "Documentos", icon: "📄" },
+            { id: "documentos", label: "Archivos", icon: "📁" },
             { id: "tests", label: "Tests", icon: "📊" },
-            { id: "constancias", label: "Constancias", icon: "📑" },
+            { id: "constancias", label: "Constancias", icon: "📄" },
+            { id: "recetas", label: "Recetas", icon: "💊" },
+            { id: "diagnosticos", label: "Diagnósticos", icon: "🩺" },
           ]}
           defaultTab="datos"
         >
@@ -660,7 +663,7 @@ function PacienteDetalle({ paciente, onClose, addNotification }: { paciente: Pac
           {/* Pestaña: Documentos */}
           <TabPanel tabId="documentos">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold" style={{ color: colors.text }}>📄 Documentos del Paciente</h3>
+              <h3 className="font-semibold" style={{ color: colors.text }}>📁 Archivos Adjuntos</h3>
               <Button
                 size="sm"
                 onClick={() => setShowUploadModal(true)}
@@ -675,7 +678,7 @@ function PacienteDetalle({ paciente, onClose, addNotification }: { paciente: Pac
               <p style={{ color: colors.textMuted }}>No hay documentos adjuntos</p>
             ) : (
               <div className="space-y-2">
-                {documentos.map((doc) => (
+                {documentos.filter(doc => doc.tipo === 'archivo').map((doc) => (
                   <div
                     key={doc.id}
                     className="flex items-center justify-between p-3 rounded"
@@ -780,22 +783,21 @@ function PacienteDetalle({ paciente, onClose, addNotification }: { paciente: Pac
           {/* Pestaña: Constancias */}
           <TabPanel tabId="constancias">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold" style={{ color: colors.text }}>📑 Constancias y Recetas</h3>
-              <a
-                href={`/admin/documentos?paciente=${paciente.id}`}
-                className="text-sm px-3 py-1.5 rounded-lg font-medium text-white transition-all hover:opacity-90"
-                style={{ backgroundColor: colors.primary }}
+              <h3 className="font-semibold" style={{ color: colors.text }}>📄 Constancias Generadas</h3>
+              <Button
+                size="sm"
+                onClick={() => setShowDocumentoModal(true)}
               >
-                📄 Generar Documento
-              </a>
+                ➕ Generar
+              </Button>
             </div>
 
             {cargandoDocumentos ? (
-              <p style={{ color: colors.textMuted }}>Cargando documentos...</p>
+              <p style={{ color: colors.textMuted }}>Cargando...</p>
             ) : (
               <div className="space-y-2">
                 {documentos
-                  .filter((doc) => ["constancia", "receta", "diagnostico"].includes(doc.tipo))
+                  .filter((doc) => doc.tipo === "constancia")
                   .map((doc) => (
                     <div
                       key={doc.id}
@@ -803,14 +805,10 @@ function PacienteDetalle({ paciente, onClose, addNotification }: { paciente: Pac
                       style={{ backgroundColor: colors.surface }}
                     >
                       <div className="flex items-center gap-3 flex-1">
-                        <span className="text-xl">
-                          {doc.tipo === 'constancia' && '📋'}
-                          {doc.tipo === 'receta' && '💊'}
-                          {doc.tipo === 'diagnostico' && '🏥'}
-                        </span>
+                        <span className="text-xl">📋</span>
                         <div>
                           <p className="font-medium" style={{ color: colors.text }}>
-                            {doc.titulo || doc.tipo}
+                            {doc.titulo}
                           </p>
                           <p className="text-xs" style={{ color: colors.textMuted }}>
                             {new Date(doc.created_at).toLocaleDateString("es-MX")}
@@ -818,27 +816,109 @@ function PacienteDetalle({ paciente, onClose, addNotification }: { paciente: Pac
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedDoc(doc);
-                            setShowPdfModal(true);
-                          }}
-                        >
-                          📄 Ver
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          onClick={() => handleDeleteDoc(doc)}
-                        >
-                          🗑️
-                        </Button>
+                        <Button size="sm" onClick={() => { setSelectedDoc(doc); setShowPdfModal(true); }}>📄 Ver</Button>
+                        <Button size="sm" variant="danger" onClick={() => handleDeleteDoc(doc)}>🗑️</Button>
                       </div>
                     </div>
                   ))}
-                {documentos.filter((doc) => ["constancia", "receta", "diagnostico"].includes(doc.tipo)).length === 0 && (
-                  <p style={{ color: colors.textMuted }}>No hay constancias o recetas generadas</p>
+                {documentos.filter((doc) => doc.tipo === "constancia").length === 0 && (
+                  <p className="text-sm italic" style={{ color: colors.textMuted }}>No hay constancias generadas aún</p>
+                )}
+              </div>
+            )}
+          </TabPanel>
+
+          {/* Pestaña: Recetas */}
+          <TabPanel tabId="recetas">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold" style={{ color: colors.text }}>💊 Recetas Médicas</h3>
+              <Button
+                size="sm"
+                onClick={() => setShowDocumentoModal(true)}
+              >
+                ➕ Generar
+              </Button>
+            </div>
+
+            {cargandoDocumentos ? (
+              <p style={{ color: colors.textMuted }}>Cargando...</p>
+            ) : (
+              <div className="space-y-2">
+                {documentos
+                  .filter((doc) => doc.tipo === "receta")
+                  .map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between p-3 rounded"
+                      style={{ backgroundColor: colors.surface }}
+                    >
+                      <div className="flex items-center gap-3 flex-1">
+                        <span className="text-xl">💊</span>
+                        <div>
+                          <p className="font-medium" style={{ color: colors.text }}>
+                            {doc.titulo}
+                          </p>
+                          <p className="text-xs" style={{ color: colors.textMuted }}>
+                            {new Date(doc.created_at).toLocaleDateString("es-MX")}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" onClick={() => { setSelectedDoc(doc); setShowPdfModal(true); }}>📄 Ver</Button>
+                        <Button size="sm" variant="danger" onClick={() => handleDeleteDoc(doc)}>🗑️</Button>
+                      </div>
+                    </div>
+                  ))}
+                {documentos.filter((doc) => doc.tipo === "receta").length === 0 && (
+                  <p className="text-sm italic" style={{ color: colors.textMuted }}>No hay recetas generadas aún</p>
+                )}
+              </div>
+            )}
+          </TabPanel>
+
+          {/* Pestaña: Diagnósticos */}
+          <TabPanel tabId="diagnosticos">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold" style={{ color: colors.text }}>🩺 Diagnósticos</h3>
+              <Button
+                size="sm"
+                onClick={() => setShowDocumentoModal(true)}
+              >
+                ➕ Generar
+              </Button>
+            </div>
+
+            {cargandoDocumentos ? (
+              <p style={{ color: colors.textMuted }}>Cargando...</p>
+            ) : (
+              <div className="space-y-2">
+                {documentos
+                  .filter((doc) => doc.tipo === "diagnostico")
+                  .map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between p-3 rounded"
+                      style={{ backgroundColor: colors.surface }}
+                    >
+                      <div className="flex items-center gap-3 flex-1">
+                        <span className="text-xl">🏥</span>
+                        <div>
+                          <p className="font-medium" style={{ color: colors.text }}>
+                            {doc.titulo}
+                          </p>
+                          <p className="text-xs" style={{ color: colors.textMuted }}>
+                            {new Date(doc.created_at).toLocaleDateString("es-MX")}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" onClick={() => { setSelectedDoc(doc); setShowPdfModal(true); }}>📄 Ver</Button>
+                        <Button size="sm" variant="danger" onClick={() => handleDeleteDoc(doc)}>🗑️</Button>
+                      </div>
+                    </div>
+                  ))}
+                {documentos.filter((doc) => doc.tipo === "diagnostico").length === 0 && (
+                  <p className="text-sm italic" style={{ color: colors.textMuted }}>No hay diagnósticos generados aún</p>
                 )}
               </div>
             )}
@@ -982,6 +1062,20 @@ function PacienteDetalle({ paciente, onClose, addNotification }: { paciente: Pac
           setSelectedDoc(null);
         }}
         loading={deleting}
+      />
+
+      <GeneradorDocumentoModal
+        isOpen={showDocumentoModal}
+        onClose={() => setShowDocumentoModal(false)}
+        paciente={paciente}
+        onSuccess={() => {
+          addNotification("Documento generado exitosamente", "success");
+          setShowDocumentoModal(false);
+          triggerReload();
+        }}
+        onError={(err) => {
+          addNotification(`Error: ${err}`, "error");
+        }}
       />
     </div>
   );

@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import { Header, Sidebar, Button } from "@/components/admin";
+import { Header, Button } from "@/components/admin";
 import { colors } from "@/lib/theme";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -62,34 +62,30 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen flex" style={{ backgroundColor: colors.background }}>
-      <Sidebar active="dashboard" onLogout={handleLogout} />
+    <div className="flex-1 flex flex-col h-full bg-transparent">
+      <Header title="Dashboard" subtitle="Mtra. Liliana Bauza" showBack={false} />
 
-      <div className="flex-1 flex flex-col">
-        <Header title="Dashboard" subtitle="Mtra. Liliana Bauza" showBack={false} />
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <StatCard title="Pacientes" value={stats.pacientes} href="/admin/pacientes" color={colors.primary} emoji="👥" />
+          <StatCard title="Documentos" value={stats.documentos} href="/admin/documentos" color={colors.secondary} emoji="📄" />
+          <StatCard title="Tests" value={stats.tests} href="/admin/tests" color={colors.accent} emoji="📊" />
+          <StatCard title="Citas" value={stats.citas} href="/admin/citas" color={colors.primaryDark} emoji="📅" />
+        </div>
 
-        <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <StatCard title="Pacientes" value={stats.pacientes} href="/admin/pacientes" color={colors.primary} emoji="👥" />
-            <StatCard title="Documentos" value={stats.documentos} href="/admin/documentos" color={colors.secondary} emoji="📄" />
-            <StatCard title="Tests" value={stats.tests} href="/admin/tests" color={colors.accent} emoji="📊" />
-            <StatCard title="Citas" value={stats.citas} href="/admin/citas" color={colors.primaryDark} emoji="📅" />
+        {/* Quick Actions */}
+        <div className="rounded-2xl shadow p-6" style={{ backgroundColor: colors.surface }}>
+          <h2 className="text-xl font-semibold mb-4" style={{ color: colors.text }}>
+            Acciones Rápidas
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <QuickActionButton label="Nuevo Paciente" href="/admin/pacientes" icon="👤" />
+            <QuickActionButton label="Nuevo Documento" href="/admin/documentos" icon="📄" />
+            <QuickActionButton label="Crear Test" href="/admin/tests" icon="📋" />
           </div>
-
-          {/* Quick Actions */}
-          <div className="rounded-2xl shadow p-6" style={{ backgroundColor: colors.surface }}>
-            <h2 className="text-xl font-semibold mb-4" style={{ color: colors.text }}>
-              Acciones Rápidas
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <QuickActionButton label="Nuevo Paciente" href="/admin/pacientes" icon="👤" />
-              <QuickActionButton label="Nuevo Documento" href="/admin/documentos" icon="📄" />
-              <QuickActionButton label="Crear Test" href="/admin/tests" icon="📋" />
-            </div>
-          </div>
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

@@ -12,3 +12,5 @@ export { FileUpload } from "./FileUpload";
 export { BulkUpload } from "./BulkUpload";
 export { ConfirmModal } from "./ConfirmModal";
 export { Tabs, TabPanel } from "./Tabs";
+export { GeneradorDocumentoModal } from "./GeneradorDocumentoModal";
+export { EditorRico } from "./EditorRico";

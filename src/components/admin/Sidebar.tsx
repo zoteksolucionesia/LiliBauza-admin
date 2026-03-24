@@ -13,12 +13,12 @@ const navItems = [
 ];
 
 interface SidebarProps {
-  active: string;
   onLogout?: () => void;
 }
 
-export function Sidebar({ active, onLogout }: SidebarProps) {
+export function Sidebar({ onLogout }: SidebarProps) {
   const router = useRouter();
+  const pathname = usePathname();
 
   async function handleLogout() {
     if (onLogout) {
@@ -47,7 +47,7 @@ export function Sidebar({ active, onLogout }: SidebarProps) {
       {/* Nav Items */}
       <nav className="flex-1 flex flex-col gap-1">
         {navItems.map((item) => {
-          const isActive = active === item.id;
+          const isActive = pathname.startsWith(item.href);
           return (
             <a
               key={item.id}
