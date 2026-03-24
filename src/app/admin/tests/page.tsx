@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
@@ -7,17 +9,7 @@ import { DataTable, SearchBar, Modal, Button, Input, Select, TextArea, Header, N
 import { motion } from "framer-motion";
 import { ClipboardList, Plus, Trash2, Edit } from "lucide-react";
 
-const colors = {
-  primary: "#D4A5A5",
-  primaryLight: "#E8C4C4",
-  primaryDark: "#B88B8B",
-  secondary: "#C9B1B1",
-  accent: "#E5989B",
-  background: "#FDF8F8",
-  surface: "#FFFFFF",
-  text: "#3D2929",
-  textMuted: "#7D6B6B",
-};
+import { colors } from "@/lib/theme";
 
 interface Pregunta {
   id: string;

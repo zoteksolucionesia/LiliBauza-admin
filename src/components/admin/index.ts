@@ -6,6 +6,7 @@ export { Input } from "./Input";
 export { Select } from "./Select";
 export { TextArea } from "./TextArea";
 export { Header } from "./Header";
+export { Sidebar } from "./Sidebar";
 export { Notification, NotificationManager } from "./Notification";
 export { FileUpload } from "./FileUpload";
 export { BulkUpload } from "./BulkUpload";

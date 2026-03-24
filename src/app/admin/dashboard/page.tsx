@@ -1,26 +1,17 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import { Header, Button } from "@/components/admin";
-
-// Colores Palo de Rosa (por defecto)
-const colors = {
-  primary: "#D4A5A5",
-  primaryLight: "#E8C4C4",
-  primaryDark: "#B88B8B",
-  secondary: "#C9B1B1",
-  accent: "#E5989B",
-  background: "#FDF8F8",
-  surface: "#FFFFFF",
-  text: "#3D2929",
-  textMuted: "#7D6B6B",
-};
+import { Header, Sidebar, Button } from "@/components/admin";
+import { colors } from "@/lib/theme";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const { loading } = useAuth();
   const [stats, setStats] = useState({
     pacientes: 0,
     documentos: 0,
@@ -29,35 +20,17 @@ export default function AdminDashboard() {
   });
 
   useEffect(() => {
-    checkAuth();
-    loadStats();
-  }, []);
-
-  async function checkAuth() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      router.push("/admin/login");
-      return;
-    }
-    setLoading(false);
-  }
+    if (!loading) loadStats();
+  }, [loading]);
 
   async function loadStats() {
-    const { count: pacientesCount } = await supabase
-      .from("pacientes")
-      .select("*", { count: "exact", head: true });
-
-    const { count: documentosCount } = await supabase
-      .from("documentos")
-      .select("*", { count: "exact", head: true });
-
-    const { count: testsCount } = await supabase
-      .from("tests")
-      .select("*", { count: "exact", head: true });
-
-    const { count: citasCount } = await supabase
-      .from("citas")
-      .select("*", { count: "exact", head: true });
+    const [{ count: pacientesCount }, { count: documentosCount }, { count: testsCount }, { count: citasCount }] =
+      await Promise.all([
+        supabase.from("pacientes").select("*", { count: "exact", head: true }),
+        supabase.from("documentos").select("*", { count: "exact", head: true }),
+        supabase.from("tests").select("*", { count: "exact", head: true }),
+        supabase.from("citas").select("*", { count: "exact", head: true }),
+      ]);
 
     setStats({
       pacientes: pacientesCount || 0,
@@ -77,117 +50,63 @@ export default function AdminDashboard() {
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: colors.background }}>
         <div className="text-center">
           <div
-            className="w-32 h-32 rounded-full flex items-center justify-center overflow-hidden mx-auto mb-4"
+            className="w-20 h-20 rounded-full flex items-center justify-center overflow-hidden mx-auto mb-4"
             style={{ backgroundColor: colors.surface, boxShadow: `0 8px 16px -4px rgba(0, 0, 0, 0.15)` }}
           >
-            <img
-              src="/api/logo?v=5"
-              alt="LiliBauza Logo"
-              className="w-28 h-28 object-contain animate-pulse"
-            />
+            <img src="/api/logo?v=5" alt="Logo" className="w-16 h-16 object-contain animate-pulse" />
           </div>
-          <p style={{ color: colors.textMuted }}>Cargando...</p>
+          <p style={{ color: colors.textMuted }}>Verificando sesión...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: colors.background }}>
-      {/* Header con logo y botón de salir */}
-      <div className="flex items-center justify-between">
-        <Header
-          title="Dashboard Administrativo"
-          subtitle="Mtra. Liliana Bauza"
-          showBack={false}
-        />
-        <Button
-          onClick={handleLogout}
-          className="mr-4"
-          style={{ backgroundColor: colors.primaryDark }}
-        >
-          🚪 Cerrar Sesión
-        </Button>
-      </div>
+    <div className="min-h-screen flex" style={{ backgroundColor: colors.background }}>
+      <Sidebar active="dashboard" onLogout={handleLogout} />
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard
-            title="Pacientes"
-            value={stats.pacientes}
-            href="/admin/pacientes"
-            color={colors.primary}
-            emoji="👥"
-          />
-          <StatCard
-            title="Documentos"
-            value={stats.documentos}
-            href="/admin/documentos"
-            color={colors.secondary}
-            emoji="📄"
-          />
-          <StatCard
-            title="Tests"
-            value={stats.tests}
-            href="/admin/tests"
-            color={colors.accent}
-            emoji="📊"
-          />
-          <StatCard
-            title="Citas"
-            value={stats.citas}
-            href="/admin/citas"
-            color={colors.primaryDark}
-            emoji="📅"
-          />
-        </div>
+      <div className="flex-1 flex flex-col">
+        <Header title="Dashboard" subtitle="Mtra. Liliana Bauza" showBack={false} />
 
-        {/* Quick Actions */}
-        <div className="rounded-lg shadow p-6" style={{ backgroundColor: colors.surface }}>
-          <h2 className="text-xl font-semibold mb-4" style={{ color: colors.text }}>
-            Acciones Rápidas
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <QuickActionButton
-              label="Nuevo Paciente"
-              href="/admin/pacientes"
-              icon="👤"
-              colors={colors}
-            />
-            <QuickActionButton
-              label="Nuevo Documento"
-              href="/admin/documentos"
-              icon="📄"
-              colors={colors}
-            />
-            <QuickActionButton
-              label="Crear Test"
-              href="/admin/tests"
-              icon="📋"
-              colors={colors}
-            />
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
+          {/* Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <StatCard title="Pacientes" value={stats.pacientes} href="/admin/pacientes" color={colors.primary} emoji="👥" />
+            <StatCard title="Documentos" value={stats.documentos} href="/admin/documentos" color={colors.secondary} emoji="📄" />
+            <StatCard title="Tests" value={stats.tests} href="/admin/tests" color={colors.accent} emoji="📊" />
+            <StatCard title="Citas" value={stats.citas} href="/admin/citas" color={colors.primaryDark} emoji="📅" />
           </div>
-        </div>
-      </main>
+
+          {/* Quick Actions */}
+          <div className="rounded-2xl shadow p-6" style={{ backgroundColor: colors.surface }}>
+            <h2 className="text-xl font-semibold mb-4" style={{ color: colors.text }}>
+              Acciones Rápidas
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <QuickActionButton label="Nuevo Paciente" href="/admin/pacientes" icon="👤" />
+              <QuickActionButton label="Nuevo Documento" href="/admin/documentos" icon="📄" />
+              <QuickActionButton label="Crear Test" href="/admin/tests" icon="📋" />
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
 
-function StatCard({ title, value, href, color, emoji }: any) {
+function StatCard({ title, value, href, color, emoji }: { title: string; value: number; href: string; color: string; emoji: string }) {
   return (
     <a
       href={href}
-      className="rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
-      style={{ backgroundColor: "#FFFFFF" }}
+      className="rounded-2xl shadow p-6 hover:shadow-lg transition-all hover:-translate-y-0.5"
+      style={{ backgroundColor: colors.surface }}
     >
       <div className="flex items-center justify-between">
         <div>
-          <p style={{ color: "#6B7280" }} className="text-sm">{title}</p>
-          <p className="text-3xl font-bold" style={{ color: "#3D2929" }}>{value}</p>
+          <p style={{ color: colors.textMuted }} className="text-sm font-medium">{title}</p>
+          <p className="text-4xl font-bold mt-1" style={{ color: colors.text }}>{value}</p>
         </div>
-        <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: color }}>
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${color}33` }}>
           <span className="text-2xl">{emoji}</span>
         </div>
       </div>
@@ -195,14 +114,15 @@ function StatCard({ title, value, href, color, emoji }: any) {
   );
 }
 
-function QuickActionButton({ label, href, icon, colors }: any) {
+function QuickActionButton({ label, href, icon }: { label: string; href: string; icon: string }) {
   return (
     <a
       href={href}
-      className="flex items-center gap-3 p-4 border-2 rounded-lg transition-all"
+      className="flex items-center gap-3 p-4 border-2 rounded-xl transition-all hover:shadow-md"
       style={{
         borderColor: `${colors.primary}44`,
         backgroundColor: colors.background,
+        color: colors.text,
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.borderColor = colors.primary;
@@ -214,7 +134,7 @@ function QuickActionButton({ label, href, icon, colors }: any) {
       }}
     >
       <span className="text-2xl">{icon}</span>
-      <span className="font-medium" style={{ color: colors.text }}>{label}</span>
+      <span className="font-medium">{label}</span>
     </a>
   );
 }
