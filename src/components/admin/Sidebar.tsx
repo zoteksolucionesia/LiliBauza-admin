@@ -37,10 +37,10 @@ export function Sidebar({ active, onLogout }: SidebarProps) {
       {/* Logo */}
       <div className="flex justify-center mb-8">
         <div
-          className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center"
-          style={{ boxShadow: `0 4px 12px -2px rgba(212,165,165,0.5)` }}
+          className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center p-1"
+          style={{ boxShadow: `0 4px 12px -2px rgba(212,165,165,0.5)`, backgroundColor: colors.surface }}
         >
-          <img src="/api/logo?v=6" alt="Logo" className="w-11 h-11 object-contain" />
+          <img src="/api/logo?v=6" alt="Logo" className="w-full h-full object-contain" />
         </div>
       </div>
 
@@ -95,6 +95,12 @@ export function Sidebar({ active, onLogout }: SidebarProps) {
         <span className="text-xl flex-shrink-0">🚪</span>
         <span className="hidden md:block">Cerrar Sesión</span>
       </button>
+      {/* Zotek Signature */}
+      <div className="mt-8 flex justify-center opacity-70 hover:opacity-100 transition-opacity">
+        <a href="https://zotek.com.mx" target="_blank" rel="noopener noreferrer">
+          <img src="/images/logo_zotek_principal.svg" alt="Powered by Zotek" className="h-6 object-contain filter drop-shadow-sm" />
+        </a>
+      </div>
     </aside>
   );
 }

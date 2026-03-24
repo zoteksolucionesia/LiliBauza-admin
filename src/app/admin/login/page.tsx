@@ -40,13 +40,13 @@ export default function AdminLogin() {
         {/* Logo */}
         <div className="mb-8 flex justify-center">
           <div
-            className="w-28 h-28 rounded-full flex items-center justify-center overflow-hidden"
+            className="w-40 h-40 rounded-full flex items-center justify-center overflow-hidden p-2"
             style={{ backgroundColor: colors.surface, boxShadow: `0 8px 32px -4px rgba(212,165,165,0.4)` }}
           >
             <img
-              src="/api/logo?v=5"
+              src="/api/logo?v=6"
               alt="LiliBauza Logo"
-              className="w-24 h-24 object-contain"
+              className="w-full h-full object-contain"
             />
           </div>
         </div>
@@ -132,6 +132,13 @@ export default function AdminLogin() {
             </a>
           </p>
         </div>
+      </div>
+
+      {/* Zotek Signature */}
+      <div className="fixed bottom-6 w-full flex justify-center opacity-70 hover:opacity-100 transition-opacity">
+        <a href="https://zotek.com.mx" target="_blank" rel="noopener noreferrer">
+          <img src="/images/logo_zotek_principal.svg" alt="Powered by Zotek" className="h-8 object-contain filter drop-shadow-sm" />
+        </a>
       </div>
     </div>
   );
