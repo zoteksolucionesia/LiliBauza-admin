@@ -26,7 +26,7 @@ export function Sidebar({ onLogout }: SidebarProps) {
       return;
     }
     await supabase.auth.signOut();
-    router.push("/admin/login");
+    window.location.href = "/admin/login";
   }
 
   return (
@@ -34,14 +34,9 @@ export function Sidebar({ onLogout }: SidebarProps) {
       className="w-20 md:w-56 min-h-screen flex flex-col py-6 px-2 md:px-4 shadow-lg flex-shrink-0"
       style={{ backgroundColor: colors.surface }}
     >
-      {/* Logo */}
-      <div className="flex justify-center mb-8">
-        <div
-          className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center p-1"
-          style={{ boxShadow: `0 4px 12px -2px rgba(212,165,165,0.5)`, backgroundColor: colors.surface }}
-        >
-          <img src="/api/logo?v=6" alt="Logo" className="w-full h-full object-contain" />
-        </div>
+      {/* Logo principal — plano, sin círculo ni sombra */}
+      <div className="flex justify-center mb-6">
+        <img src="/logo.png" alt="Logo" className="w-28 h-28 object-contain" />
       </div>
 
       {/* Nav Items */}
@@ -78,10 +73,15 @@ export function Sidebar({ onLogout }: SidebarProps) {
         })}
       </nav>
 
+      {/* Logo Terhfam — arriba de Cerrar Sesión */}
+      <div className="flex justify-center mb-2 mt-4">
+        <img src="/logo_terhfam.png" alt="Logo Terhfam" className="w-28 h-28 object-contain" />
+      </div>
+
       {/* Logout */}
       <button
         onClick={handleLogout}
-        className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm mt-4"
+        className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm"
         style={{ color: colors.textMuted }}
         onMouseEnter={(e) => {
           e.currentTarget.style.backgroundColor = `${colors.accent}22`;
@@ -96,7 +96,7 @@ export function Sidebar({ onLogout }: SidebarProps) {
         <span className="hidden md:block">Cerrar Sesión</span>
       </button>
       {/* Zotek Signature */}
-      <div className="mt-8 flex justify-center opacity-70 hover:opacity-100 transition-opacity">
+      <div className="mt-4 flex justify-center opacity-70 hover:opacity-100 transition-opacity">
         <a href="https://zotek.com.mx" target="_blank" rel="noopener noreferrer">
           <img src="/images/logo_zotek_principal.svg" alt="Powered by Zotek" className="h-6 object-contain filter drop-shadow-sm" />
         </a>

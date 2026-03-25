@@ -5,6 +5,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { Modal, Button, Select, TextArea, Input, EditorRico } from "@/components/admin";
 import { colors } from "@/lib/theme";
 import { jsPDF } from "jspdf";
+import { PDFDocument } from "pdf-lib";
+import { HOJA_MEMBRETADA_BASE64 } from "@/lib/membretadaData";
 
 interface Paciente {
   id: string;
@@ -135,46 +137,34 @@ export function GeneradorDocumentoModal({
   };
 
   const generatePDF = async (content: string) => {
-    const doc = new jsPDF({
+    // =====================================================
+    // FASE 1: Generar PDF de contenido sin fondo (solo texto)
+    // =====================================================
+    const contentDoc = new jsPDF({
       orientation: "p",
       unit: "mm",
       format: "letter" 
     });
 
-    const margin = 15; 
-    const pageWidth = 215.9; 
-    
-    // 1. Agregar Logo
-    try {
-      const img = new Image();
-      img.src = "/api/logo?v=6";
-      await new Promise((resolve) => {
-        img.onload = resolve;
-        img.onerror = resolve;
-      });
-      
-      if (img.complete && img.naturalWidth > 0) {
-        const logoWidth = 35;
-        const logoHeight = (img.naturalHeight * logoWidth) / img.naturalWidth;
-        doc.addImage(img, "PNG", (pageWidth - logoWidth) / 2, 10, logoWidth, logoHeight);
-      }
-    } catch (e) {
-      console.error("Error loading logo for PDF:", e);
-    }
+    const pageWidth = 215.9;
+    const pageHeight = 279.4;
+    const marginLeft = 22;
+    const marginRight = 22;
+    const marginTop = 62;  // Espacio para el header de la membretada
+    const marginBottom = 25; // Espacio para el footer de la membretada
 
-    // 2. Renderizar Contenido HTML
+    // Renderizar Contenido HTML en un div temporal
     const tempDiv = document.createElement("div");
     tempDiv.className = "pdf-content";
     
-    // DEFINITIVO: Buffer de 1024px con padding interno de seguridad para evitar recortes
     const renderWidthPX = 1024;
     tempDiv.style.width = `${renderWidthPX}px`;
-    tempDiv.style.padding = "0 40px"; // Margen de seguridad para que no se corten caracteres
+    tempDiv.style.padding = "0 40px";
     tempDiv.style.boxSizing = "border-box";
     tempDiv.style.margin = "0";
     tempDiv.style.fontSize = "12pt";
     tempDiv.style.fontFamily = "helvetica";
-    tempDiv.style.lineHeight = "1.8"; // Interlineado más amplio
+    tempDiv.style.lineHeight = "1.8";
     tempDiv.style.color = "#3D2929";
     
     tempDiv.style.position = "fixed";
@@ -185,7 +175,7 @@ export function GeneradorDocumentoModal({
     const styleSheet = document.createElement("style");
     styleSheet.innerText = `
       .pdf-content { 
-        background: white;
+        background: transparent;
         text-align: justify;
         text-justify: inter-word;
       }
@@ -193,7 +183,7 @@ export function GeneradorDocumentoModal({
       .pdf-content .ql-align-right { text-align: right; }
       .pdf-content .ql-align-justify { text-align: justify; text-justify: inter-word; }
       .pdf-content p { 
-        margin-bottom: 25px; /* Más espacio entre bloques de texto */
+        margin-bottom: 25px;
         margin-top: 0; 
         display: block;
         width: 100%;
@@ -205,25 +195,77 @@ export function GeneradorDocumentoModal({
     tempDiv.innerHTML = content;
     document.body.appendChild(tempDiv);
 
-    // Pequeña pausa para asegurar que el DOM se procese
     await new Promise(r => setTimeout(r, 100));
 
-    const innerWidthMM = pageWidth - (margin * 2);
+    const innerWidthMM = pageWidth - marginLeft - marginRight;
 
-    await doc.html(tempDiv, {
+    await contentDoc.html(tempDiv, {
       callback: function (doc) {
         document.body.removeChild(tempDiv);
         document.head.removeChild(styleSheet);
       },
-      margin: [45, margin, margin, margin],
+      margin: [marginTop, marginRight, marginBottom, marginLeft],
       autoPaging: "text",
-      x: margin,
-      y: 45,
+      x: marginLeft,
+      y: marginTop,
       width: innerWidthMM,
       windowWidth: renderWidthPX 
     });
 
-    return doc.output("blob");
+    // =====================================================
+    // FASE 2: Combinar con la hoja membretada usando pdf-lib
+    // =====================================================
+    
+    // Decodificar la hoja membretada desde base64 (embebida en el bundle)
+    const binaryString = atob(HOJA_MEMBRETADA_BASE64);
+    const membretadaBytes = new Uint8Array(binaryString.length);
+    for (let j = 0; j < binaryString.length; j++) {
+      membretadaBytes[j] = binaryString.charCodeAt(j);
+    }
+    const membretadaPdf = await PDFDocument.load(membretadaBytes);
+
+    // Cargar el PDF de contenido generado por jsPDF
+    const contentBytes = contentDoc.output("arraybuffer");
+    const contentPdf = await PDFDocument.load(contentBytes);
+
+    // Crear PDF final
+    const finalPdf = await PDFDocument.create();
+    const totalPages = contentPdf.getPageCount();
+    
+    // Embeder ambos PDFs como templates reutilizables
+    const [membretadaTemplate] = await finalPdf.embedPdf(membretadaPdf, [0]);
+    const contentTemplates = await finalPdf.embedPdf(contentPdf, 
+      Array.from({ length: totalPages }, (_, i) => i)
+    );
+
+    // Tamaño carta en puntos (Letter: 612 x 792)
+    const letterWidth = 612;
+    const letterHeight = 792;
+
+    for (let i = 0; i < totalPages; i++) {
+      // Crear página en blanco tamaño carta
+      const page = finalPdf.addPage([letterWidth, letterHeight]);
+      
+      // PASO 1: Dibujar la membretada como FONDO (se dibuja primero)
+      page.drawPage(membretadaTemplate, {
+        x: 0,
+        y: 0,
+        width: letterWidth,
+        height: letterHeight,
+      });
+      
+      // PASO 2: Dibujar el contenido ENCIMA del fondo
+      page.drawPage(contentTemplates[i], {
+        x: 0,
+        y: 0,
+        width: letterWidth,
+        height: letterHeight,
+      });
+    }
+
+    // Exportar como blob
+    const finalBytes = await finalPdf.save();
+    return new Blob([finalBytes.buffer as ArrayBuffer], { type: "application/pdf" });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -271,7 +313,6 @@ export function GeneradorDocumentoModal({
         .from("documentos")
         .insert({
           paciente_id: formData.paciente_id || null,
-          paciente_nombre: formData.paciente_nombre,
           tipo: selectedTipo,
           titulo: formData.titulo,
           contenido: formData.contenido,

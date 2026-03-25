@@ -21,7 +21,7 @@ export function useAuth() {
       } = await supabase.auth.getSession();
 
       if (!session) {
-        router.push("/admin/login");
+        window.location.href = "/admin/login";
         return;
       }
 

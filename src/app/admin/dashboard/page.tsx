@@ -49,12 +49,7 @@ export default function AdminDashboard() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: colors.background }}>
         <div className="text-center">
-          <div
-            className="w-20 h-20 rounded-full flex items-center justify-center overflow-hidden mx-auto mb-4"
-            style={{ backgroundColor: colors.surface, boxShadow: `0 8px 16px -4px rgba(0, 0, 0, 0.15)` }}
-          >
-            <img src="/api/logo?v=5" alt="Logo" className="w-16 h-16 object-contain animate-pulse" />
-          </div>
+          <img src="/logo.png" alt="Logo" className="w-28 h-28 object-contain mx-auto mb-4 animate-pulse" />
           <p style={{ color: colors.textMuted }}>Verificando sesión...</p>
         </div>
       </div>

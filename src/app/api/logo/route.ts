@@ -8,8 +8,8 @@ export const revalidate = 0;
 
 export async function GET() {
   try {
-    // Leer el archivo de logo PNG desde una ubicación fuera del directorio público
-    const logoPath = path.join(process.cwd(), "src", "assets", "Logo_oficial.png");
+    // Leer el nuevo logo PNG transparente
+    const logoPath = path.join(process.cwd(), "src", "assets", "LogoLiliTransparente.png");
     const fileBuffer = await fs.readFile(logoPath);
 
     return new NextResponse(fileBuffer, {

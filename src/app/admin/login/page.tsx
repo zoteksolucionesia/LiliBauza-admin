@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { useRouter } from "next/navigation";
 import { colors } from "@/lib/theme";
 
 export default function AdminLogin() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,41 +26,36 @@ export default function AdminLogin() {
       return;
     }
 
-    router.push("/admin/dashboard");
+    window.location.href = "/admin/dashboard";
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: colors.background }}>
       <div
-        className="max-w-md w-full rounded-2xl shadow-xl p-8"
+        className="max-w-md w-full rounded-2xl shadow-xl p-6"
         style={{ backgroundColor: colors.surface }}
       >
-        {/* Logo */}
-        <div className="mb-8 flex justify-center">
-          <div
-            className="w-40 h-40 rounded-full flex items-center justify-center overflow-hidden p-2"
-            style={{ backgroundColor: colors.surface, boxShadow: `0 8px 32px -4px rgba(212,165,165,0.4)` }}
-          >
-            <img
-              src="/api/logo?v=6"
-              alt="LiliBauza Logo"
-              className="w-full h-full object-contain"
-            />
-          </div>
+        {/* Logo — plano, sin circulo */}
+        <div className="mb-2 flex justify-center">
+          <img
+            src="/logo.png"
+            alt="LiliBauza Logo"
+            className="w-44 h-44 object-contain"
+          />
         </div>
 
-        <div className="text-center mb-8">
+        <div className="text-center mb-3">
           <h1 className="text-2xl font-bold" style={{ color: colors.text }}>
             Panel Administrativo
           </h1>
-          <p className="mt-1 text-sm" style={{ color: colors.textMuted }}>
+          <p className="mt-0.5 text-sm" style={{ color: colors.textMuted }}>
             Mtra. Liliana Bauza
           </p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={handleLogin} className="space-y-3">
           <div>
-            <label className="block text-sm font-medium mb-2" style={{ color: colors.text }}>
+            <label className="block text-sm font-medium mb-1" style={{ color: colors.text }}>
               Email
             </label>
             <input
@@ -71,7 +64,7 @@ export default function AdminLogin() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
-              className="w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 transition-all"
+              className="w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 transition-all"
               style={{
                 borderColor: `${colors.primary}66`,
                 backgroundColor: colors.background,
@@ -82,7 +75,7 @@ export default function AdminLogin() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2" style={{ color: colors.text }}>
+            <label className="block text-sm font-medium mb-1" style={{ color: colors.text }}>
               Contraseña
             </label>
             <input
@@ -91,7 +84,7 @@ export default function AdminLogin() {
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
-              className="w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 transition-all"
+              className="w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 transition-all"
               style={{
                 borderColor: `${colors.primary}66`,
                 backgroundColor: colors.background,
@@ -110,7 +103,7 @@ export default function AdminLogin() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded-xl font-semibold transition-all hover:opacity-90 disabled:opacity-50 mt-2"
+            className="w-full py-2.5 rounded-xl font-semibold transition-all hover:opacity-90 disabled:opacity-50 mt-1"
             style={{
               backgroundColor: colors.primary,
               color: "#FFFFFF",
@@ -120,7 +113,7 @@ export default function AdminLogin() {
           </button>
         </form>
 
-        <div className="mt-6 text-center">
+        <div className="mt-4 text-center">
           <p className="text-sm" style={{ color: colors.textMuted }}>
             ¿Problemas para acceder?{" "}
             <a
@@ -134,10 +127,10 @@ export default function AdminLogin() {
         </div>
       </div>
 
-      {/* Zotek Signature */}
-      <div className="fixed bottom-6 w-full flex justify-center opacity-70 hover:opacity-100 transition-opacity">
+      {/* Zotek Signature — dentro del flujo, no fixed */}
+      <div className="absolute bottom-4 w-full flex justify-center opacity-70 hover:opacity-100 transition-opacity">
         <a href="https://zotek.com.mx" target="_blank" rel="noopener noreferrer">
-          <img src="/images/logo_zotek_principal.svg" alt="Powered by Zotek" className="h-8 object-contain filter drop-shadow-sm" />
+          <img src="/images/logo_zotek_principal.svg" alt="Powered by Zotek" className="h-7 object-contain filter drop-shadow-sm" />
         </a>
       </div>
     </div>
