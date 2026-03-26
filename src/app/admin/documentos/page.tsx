@@ -23,6 +23,8 @@ import { motion } from "framer-motion";
 import { FileText, FileCheck, FileBadge, Trash2, Eye } from "lucide-react";
 
 import { colors } from "@/lib/theme";
+import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "@/hooks/useTheme";
 
 interface Plantilla {
   id: string;
@@ -46,6 +48,7 @@ export default function DocumentosPage() {
   const [loading, setLoading] = useState(true);
   const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
   const [documentos, setDocumentos] = useState<Documento[]>([]);
+  const [documentosPapelera, setDocumentosPapelera] = useState<Documento[]>([]);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isGenModalOpen, setIsGenModalOpen] = useState(false);
@@ -54,7 +57,9 @@ export default function DocumentosPage() {
   const [selectedDoc, setSelectedDoc] = useState<Documento | null>(null);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showHardDeleteModal, setShowHardDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [restoring, setRestoring] = useState(false);
 
   const [notifications, setNotifications] = useState<Array<{ id: string; message: string; type: "success" | "error" | "info" }>>([]);
 
@@ -74,7 +79,7 @@ export default function DocumentosPage() {
 
   async function loadData() {
     setLoading(true);
-    await Promise.all([loadPlantillas(), loadDocumentos()]);
+    await Promise.all([loadPlantillas(), loadDocumentos(), loadPapelera()]);
     setLoading(false);
   }
 
@@ -87,9 +92,13 @@ export default function DocumentosPage() {
   }
 
   async function loadPlantillas() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
     const { data, error } = await supabase
       .from("plantillas_documentos")
       .select("*")
+      .eq("terapeuta_id", session.user.id)
       .order("tipo", { ascending: true });
 
     if (error) {
@@ -100,12 +109,16 @@ export default function DocumentosPage() {
   }
 
   async function loadDocumentos() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
     const { data, error } = await supabase
       .from("documentos")
       .select(`
         *,
         pacientes (nombre_completo)
       `)
+      .eq("terapeuta_id", session.user.id)
       .eq("activo", true)
       .order("created_at", { ascending: false });
 
@@ -113,6 +126,27 @@ export default function DocumentosPage() {
       console.error("Error loading documentos:", error);
     } else {
       setDocumentos(data || []);
+    }
+  }
+
+  async function loadPapelera() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const { data, error } = await supabase
+      .from("documentos")
+      .select(`
+        *,
+        pacientes (nombre_completo)
+      `)
+      .eq("terapeuta_id", session.user.id)
+      .eq("activo", false)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error loading papelera:", error);
+    } else {
+      setDocumentosPapelera(data || []);
     }
   }
 
@@ -131,14 +165,93 @@ export default function DocumentosPage() {
         .eq("id", selectedDoc.id);
       
       if (error) throw error;
-      addNotification("Documento eliminado correctamente", "success");
+      addNotification("Documento movido a la papelera", "success");
       loadDocumentos();
+      loadPapelera();
     } catch (error: any) {
-      addNotification("Error al eliminar documento", "error");
+      addNotification("Error al mover a papelera", "error");
     } finally {
       setDeleting(false);
       setShowDeleteModal(false);
       setSelectedDoc(null);
+    }
+  };
+
+  const handleRestore = async (doc: Documento) => {
+    setRestoring(true);
+    try {
+      const { error } = await supabase
+        .from("documentos")
+        .update({ activo: true })
+        .eq("id", doc.id);
+      
+      if (error) throw error;
+      addNotification("Documento restaurado correctamente", "success");
+      loadDocumentos();
+      loadPapelera();
+    } catch (error: any) {
+      addNotification("Error al restaurar documento", "error");
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  const confirmHardDelete = async () => {
+    if (!selectedDoc) return;
+    setDeleting(true);
+    try {
+      // Borrar de Storage
+      const urlParts = selectedDoc.storage_url.split("/");
+      const fileName = urlParts[urlParts.length - 1];
+      
+      if (fileName) {
+        await supabase.storage.from("documentos").remove([fileName]);
+      }
+
+      // Borrar de DB
+      const { error } = await supabase
+        .from("documentos")
+        .delete()
+        .eq("id", selectedDoc.id);
+      
+      if (error) throw error;
+      addNotification("Documento eliminado permanentemente", "success");
+      loadPapelera();
+    } catch (error: any) {
+      addNotification("Error al eliminar permanentemente", "error");
+    } finally {
+      setDeleting(false);
+      setShowHardDeleteModal(false);
+      setSelectedDoc(null);
+    }
+  };
+
+  const emptyTrash = async () => {
+    if (!confirm("¿Estás seguro de que deseas vaciar la papelera? Esta acción no se puede deshacer.")) return;
+    setDeleting(true);
+    try {
+      // Obtener todos los IDs de archivos en papelera
+      for (const doc of documentosPapelera) {
+        const urlParts = doc.storage_url.split("/");
+        const fileName = urlParts[urlParts.length - 1];
+        if (fileName) {
+          await supabase.storage.from("documentos").remove([fileName]);
+        }
+      }
+
+      // Borrar todos en DB
+      const { error } = await supabase
+        .from("documentos")
+        .delete()
+        .eq("activo", false);
+      
+      if (error) throw error;
+      addNotification("Papelera vaciada correctamente", "success");
+      loadPapelera();
+    } catch (error: any) {
+      addNotification("Error al vaciar papelera", "error");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -189,7 +302,8 @@ export default function DocumentosPage() {
 
   const tabsConfig = [
     { id: "documentos", label: "Documentos", icon: "📄" },
-    { id: "plantillas", label: "Plantillas", icon: "⚙️" }
+    { id: "plantillas", label: "Plantillas", icon: "⚙️" },
+    { id: "papelera", label: "Papelera", icon: "🗑️" }
   ];
 
   return (
@@ -278,6 +392,49 @@ export default function DocumentosPage() {
               emptyMessage={loading ? "Cargando plantillas..." : "No se encontraron plantillas."}
             />
           </TabPanel>
+          <TabPanel tabId="papelera">
+            <div className="flex justify-between items-center mb-4">
+              <p className="text-sm" style={{ color: colors.textMuted }}>
+                Documentos pendientes de eliminación permanente ({documentosPapelera.length})
+              </p>
+              <Button 
+                variant="danger" 
+                size="sm" 
+                onClick={emptyTrash} 
+                disabled={documentosPapelera.length === 0 || deleting}
+              >
+                🗑️ Vaciar Papelera
+              </Button>
+            </div>
+            
+            <DataTable
+              columns={documentoColumns}
+              data={documentosPapelera}
+              actions={(row) => (
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleRestore(row)}
+                    disabled={restoring}
+                  >
+                    🔄 Restaurar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() => {
+                      setSelectedDoc(row);
+                      setShowHardDeleteModal(true);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+              emptyMessage={loading ? "Cargando papelera..." : "La papelera está vacía."}
+            />
+          </TabPanel>
         </Tabs>
       </main>
 
@@ -363,11 +520,23 @@ export default function DocumentosPage() {
 
       <ConfirmModal
         isOpen={showDeleteModal}
-        title="Eliminar Documento"
-        message={`¿Estás seguro de que deseas eliminar "${selectedDoc?.titulo}"?`}
+        title="Mover a Papelera"
+        message={`¿Estás seguro de que deseas mover "${selectedDoc?.titulo}" a la papelera? Podrás restaurarlo más tarde.`}
         onConfirm={confirmDelete}
         onCancel={() => {
           setShowDeleteModal(false);
+          setSelectedDoc(null);
+        }}
+        loading={deleting}
+      />
+
+      <ConfirmModal
+        isOpen={showHardDeleteModal}
+        title="Eliminar Permanentemente"
+        message={`Esta acción eliminará "${selectedDoc?.titulo}" tanto de la base de datos como del almacenamiento de forma definitiva. ¿Continuar?`}
+        onConfirm={confirmHardDelete}
+        onCancel={() => {
+          setShowHardDeleteModal(false);
           setSelectedDoc(null);
         }}
         loading={deleting}
@@ -412,11 +581,15 @@ function PlantillaForm({ plantilla, onClose, onSuccess, onError }: PlantillaForm
         if (error) throw error;
       } else {
         // Create
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error("No session");
+
         const { error } = await supabase
           .from("plantillas_documentos")
           .insert({
             tipo,
             contenido_base: contenido,
+            terapeuta_id: session.user.id,
           });
 
         if (error) throw error;

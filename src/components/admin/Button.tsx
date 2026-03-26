@@ -1,17 +1,12 @@
 "use client";
 
+import { colors } from "@/lib/theme";
+
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "danger" | "ghost";
   size?: "sm" | "md" | "lg";
   children: React.ReactNode;
 }
-
-const colors = {
-  primary: "#D4A5A5",
-  secondary: "#C9B1B1",
-  danger: "#B85C5C",
-  ghost: "transparent",
-};
 
 export function Button({
   variant = "primary",
@@ -26,15 +21,22 @@ export function Button({
     lg: "px-6 py-3 text-lg",
   };
 
+  const variantColors: Record<string, string> = {
+    primary: colors.primary,
+    secondary: colors.secondary,
+    danger: "#B85C5C",
+    ghost: "transparent",
+  };
+
   const baseStyles = "rounded-lg font-medium transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed";
 
   return (
     <button
       className={`${baseStyles} ${sizeClasses[size]} ${className}`}
       style={{
-        backgroundColor: variant === "ghost" ? "transparent" : colors[variant],
-        color: variant === "ghost" ? "#3D2929" : "#FFFFFF",
-        border: variant === "ghost" ? "1px solid #E8C4C4" : "none",
+        backgroundColor: variant === "ghost" ? "transparent" : variantColors[variant],
+        color: variant === "ghost" ? colors.text : "#FFFFFF",
+        border: variant === "ghost" ? `1px solid ${colors.border}` : "none",
       }}
       {...props}
     >

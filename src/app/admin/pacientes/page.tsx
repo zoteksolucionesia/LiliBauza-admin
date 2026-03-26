@@ -7,18 +7,12 @@ import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { DataTable, SearchBar, Modal, Button, Input, Select, TextArea, Header, FileUpload, NotificationManager, BulkUpload, ConfirmModal, Tabs, TabPanel, GeneradorDocumentoModal } from "@/components/admin";
 import { motion } from "framer-motion";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 
-const colors = {
-  primary: "#D4A5A5",
-  primaryLight: "#E8C4C4",
-  primaryDark: "#B88B8B",
-  secondary: "#C9B1B1",
-  accent: "#E5989B",
-  background: "#FDF8F8",
-  surface: "#FFFFFF",
-  text: "#3D2929",
-  textMuted: "#7D6B6B",
-};
+import { useTheme } from "@/hooks/useTheme";
+import { useAuth } from "@/hooks/useAuth";
+import { colors } from "@/lib/theme";
 
 interface Paciente {
   id: string;
@@ -67,9 +61,13 @@ export default function PacientesPage() {
   }
 
   async function loadPacientes() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
     const query = supabase
       .from("pacientes")
       .select("*")
+      .eq("terapeuta_id", session.user.id)
       .order("nombre_completo", { ascending: true });
 
     if (filtroEstado !== 'todos') {
@@ -210,6 +208,7 @@ export default function PacientesPage() {
               setIsModalOpen(false);
               loadPacientes();
             }}
+            addNotification={addNotification}
           />
         )}
       </Modal>
@@ -217,7 +216,7 @@ export default function PacientesPage() {
   );
 }
 
-function PacienteForm({ onClose }: { onClose: () => void }) {
+function PacienteForm({ onClose, addNotification }: { onClose: () => void; addNotification: (message: string, type: "success" | "error" | "info") => void }) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     nombre: "",
@@ -233,6 +232,13 @@ function PacienteForm({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     setLoading(true);
 
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      addNotification("No hay sesión activa. Inicia sesión nuevamente.", "error");
+      setLoading(false);
+      return;
+    }
+
     const { error } = await supabase.from("pacientes").insert({
       nombre_completo: formData.nombre,
       email: formData.email,
@@ -242,13 +248,14 @@ function PacienteForm({ onClose }: { onClose: () => void }) {
       ocupacion: formData.ocupacion,
       notas: formData.notas,
       activo: true,
+      terapeuta_id: session.user.id,
       created_at: new Date().toISOString(),
     });
 
     if (error) {
-      alert("Error al guardar: " + error.message);
+      addNotification("Error al guardar: " + error.message, "error");
     } else {
-      alert("Paciente registrado exitosamente");
+      addNotification("✅ Paciente registrado exitosamente", "success");
       onClose();
     }
 
@@ -323,6 +330,7 @@ function PacienteDetalle({ paciente, onClose, addNotification }: { paciente: Pac
   const [archivando, setArchivando] = useState(false);
   const [documentos, setDocumentos] = useState<any[]>([]);
   const [testsAplicados, setTestsAplicados] = useState<any[]>([]);
+  const [citas, setCitas] = useState<any[]>([]);
   const [cargandoDocumentos, setCargandoDocumentos] = useState(true);
   const [cargandoTests, setCargandoTests] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -332,6 +340,9 @@ function PacienteDetalle({ paciente, onClose, addNotification }: { paciente: Pac
   const [showTestModal, setShowTestModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showDocumentoModal, setShowDocumentoModal] = useState(false);
+  const [showDeletePacienteModal, setShowDeletePacienteModal] = useState(false);
+  const [eliminandoPaciente, setEliminandoPaciente] = useState(false);
+  const [respaldando, setRespaldando] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [reloadTrigger, setReloadTrigger] = useState(0);
 
@@ -378,6 +389,18 @@ function PacienteDetalle({ paciente, onClose, addNotification }: { paciente: Pac
       setCargandoTests(false);
     }
     loadTests();
+  }, [paciente.id, reloadTrigger]);
+
+  // Cargar citas del paciente (para conteo de historial)
+  useEffect(() => {
+    async function loadCitas() {
+      const { data } = await supabase
+        .from("citas")
+        .select("id")
+        .eq("paciente_id", paciente.id);
+      setCitas(data || []);
+    }
+    loadCitas();
   }, [paciente.id, reloadTrigger]);
 
   const triggerReload = () => {
@@ -478,12 +501,115 @@ function PacienteDetalle({ paciente, onClose, addNotification }: { paciente: Pac
       .eq("id", pacienteData.id);
 
     if (error) {
-      alert("Error: " + error.message);
+      addNotification("Error: " + error.message, "error");
     } else {
-      alert(`Paciente ${nuevoActivo ? 'reactivado' : 'archivado'} exitosamente`);
+      addNotification(`✅ Paciente ${nuevoActivo ? 'reactivado' : 'archivado'} exitosamente`, "success");
       onClose();
     }
     setArchivando(false);
+  };
+
+  const totalHistorial = documentos.length + testsAplicados.length + citas.length;
+
+  const handleDeletePaciente = async () => {
+    setEliminandoPaciente(true);
+    try {
+      // 1. Borrar documentos del storage
+      for (const doc of documentos) {
+        if (doc.storage_url) {
+          const urlParts = doc.storage_url.split("/");
+          const fileName = urlParts[urlParts.length - 1];
+          if (fileName) {
+            await supabase.storage.from("documentos").remove([fileName]);
+          }
+        }
+      }
+
+      // 2. Borrar documentos de la DB
+      await supabase.from("documentos").delete().eq("paciente_id", paciente.id);
+
+      // 3. Borrar resultados de tests
+      await supabase.from("resultados_tests").delete().eq("paciente_id", paciente.id);
+
+      // 4. Borrar citas
+      await supabase.from("citas").delete().eq("paciente_id", paciente.id);
+
+      // 5. Borrar paciente
+      const { error } = await supabase.from("pacientes").delete().eq("id", paciente.id);
+
+      if (error) throw error;
+
+      addNotification("Paciente y todo su historial eliminados permanentemente", "success");
+      onClose();
+    } catch (error: any) {
+      addNotification("Error al eliminar paciente: " + error.message, "error");
+    } finally {
+      setEliminandoPaciente(false);
+      setShowDeletePacienteModal(false);
+    }
+  };
+
+  const handleBackup = async () => {
+    setRespaldando(true);
+    try {
+      const zip = new JSZip();
+      const folder = zip.folder(`Respaldo_${pacienteData.nombre_completo.replace(/\s+/g, '_')}`);
+      if (!folder) throw new Error("No se pudo crear la carpeta del ZIP");
+
+      // 1. Agregar resumen JSON del paciente
+      const resumen = {
+        paciente: {
+          nombre: pacienteData.nombre_completo,
+          email: pacienteData.email,
+          telefono: pacienteData.telefono,
+          fecha_nacimiento: pacienteData.fecha_nacimiento,
+          genero: pacienteData.genero,
+          ocupacion: pacienteData.ocupacion,
+          notas: pacienteData.notas,
+          fecha_registro: pacienteData.created_at,
+        },
+        tests_aplicados: testsAplicados.map(t => ({
+          fecha: t.created_at,
+          puntaje: t.puntaje_total,
+          interpretacion: t.interpretacion,
+          respuestas: t.respuestas,
+        })),
+        citas: citas,
+        total_documentos: documentos.length,
+        fecha_respaldo: new Date().toISOString(),
+      };
+      folder.file("resumen_historial.json", JSON.stringify(resumen, null, 2));
+
+      // 2. Descargar cada documento del storage y añadirlo al ZIP
+      let descargados = 0;
+      for (const doc of documentos) {
+        if (doc.storage_url) {
+          try {
+            const response = await fetch(doc.storage_url);
+            if (response.ok) {
+              const blob = await response.blob();
+              const safeName = (doc.titulo || `documento_${doc.id.slice(0, 8)}`).replace(/[^a-zA-Z0-9_áéíóúñÁÉÍÓÚÑ .\-]/g, '_');
+              const ext = doc.storage_url.split('.').pop()?.split('?')[0] || 'pdf';
+              folder.file(`${safeName}.${ext}`, blob);
+              descargados++;
+            }
+          } catch (e) {
+            console.warn(`No se pudo descargar: ${doc.titulo}`, e);
+          }
+        }
+      }
+
+      // 3. Generar y descargar el ZIP
+      const content = await zip.generateAsync({ type: "blob" });
+      const fechaHoy = new Date().toISOString().split('T')[0];
+      saveAs(content, `Respaldo_${pacienteData.nombre_completo.replace(/\s+/g, '_')}_${fechaHoy}.zip`);
+
+      addNotification(`✅ Respaldo generado con ${descargados} archivo(s) descargado(s)`, "success");
+    } catch (error: any) {
+      addNotification("Error al generar respaldo: " + error.message, "error");
+    } finally {
+      setRespaldando(false);
+    }
   };
 
   return (
@@ -523,6 +649,21 @@ function PacienteDetalle({ paciente, onClose, addNotification }: { paciente: Pac
                 disabled={archivando}
               >
                 {archivando ? 'Procesando...' : (paciente.activo !== false ? '📁 Archivar' : '✅ Reactivar')}
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={() => setShowDeletePacienteModal(true)}
+              >
+                🗑️ Eliminar
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleBackup}
+                disabled={respaldando}
+              >
+                {respaldando ? '⏳ Respaldando...' : '💾 Respaldar'}
               </Button>
             </>
           )}
@@ -1063,6 +1204,59 @@ function PacienteDetalle({ paciente, onClose, addNotification }: { paciente: Pac
         }}
         loading={deleting}
       />
+
+      {/* Modal de eliminación definitiva del paciente */}
+      <Modal
+        isOpen={showDeletePacienteModal}
+        onClose={() => setShowDeletePacienteModal(false)}
+        title="⚠️ Eliminar Paciente Permanentemente"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg border-2 border-red-300 bg-red-50">
+            <p className="font-bold text-red-800 text-sm mb-2">⚠️ Esta acción es IRREVERSIBLE</p>
+            <p className="text-sm text-red-700 leading-relaxed">
+              Estás a punto de eliminar permanentemente a <strong>{pacienteData.nombre_completo}</strong> y todo su historial clínico.
+            </p>
+          </div>
+
+          {totalHistorial > 0 && (
+            <div className="p-4 rounded-lg bg-amber-50 border border-amber-200">
+              <p className="font-bold text-amber-800 text-sm mb-2">📋 Historial que será eliminado:</p>
+              <ul className="text-sm text-amber-700 space-y-1">
+                {documentos.length > 0 && (
+                  <li>📄 <strong>{documentos.length}</strong> documento(s) (incluyendo PDFs del storage)</li>
+                )}
+                {testsAplicados.length > 0 && (
+                  <li>📊 <strong>{testsAplicados.length}</strong> resultado(s) de test(s)</li>
+                )}
+                {citas.length > 0 && (
+                  <li>📅 <strong>{citas.length}</strong> cita(s)</li>
+                )}
+              </ul>
+            </div>
+          )}
+
+          {totalHistorial === 0 && (
+            <div className="p-4 rounded-lg bg-green-50 border border-green-200">
+              <p className="text-sm text-green-700">✅ Este paciente no tiene historial asociado. Se puede eliminar de forma segura.</p>
+            </div>
+          )}
+
+          <div className="flex gap-3 justify-end pt-2">
+            <Button variant="ghost" onClick={() => setShowDeletePacienteModal(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleDeletePaciente}
+              disabled={eliminandoPaciente}
+            >
+              {eliminandoPaciente ? "Eliminando..." : `🗑️ Eliminar Paciente${totalHistorial > 0 ? ` y ${totalHistorial} registro(s)` : ''}`}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <GeneradorDocumentoModal
         isOpen={showDocumentoModal}

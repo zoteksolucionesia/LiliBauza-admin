@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { Upload, FileText, X } from "lucide-react";
 import { Button } from "./Button";
+import { colors } from "@/lib/theme";
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void;
@@ -10,16 +11,6 @@ interface FileUploadProps {
   maxSize?: number;
   label?: string;
 }
-
-const colors = {
-  primary: "#D4A5A5",
-  primaryLight: "#E8C4C4",
-  primaryDark: "#B88B8B",
-  background: "#FDF8F8",
-  surface: "#FFFFFF",
-  text: "#3D2929",
-  textMuted: "#7D6B6B",
-};
 
 export function FileUpload({
   onFileSelect,
@@ -33,18 +24,14 @@ export function FileUpload({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = (file: File) => {
-    // Validar tipo
     if (!acceptedTypes.some((type) => file.name.toLowerCase().endsWith(type))) {
       setError(`Tipo de archivo no permitido. Solo ${acceptedTypes.join(", ")}`);
       return;
     }
-
-    // Validar tamaño
     if (file.size > maxSize * 1024 * 1024) {
       setError(`El archivo es muy grande. Máximo ${maxSize}MB`);
       return;
     }
-
     setError("");
     setSelectedFile(file);
     onFileSelect(file);
@@ -64,7 +51,6 @@ export function FileUpload({
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFile(e.dataTransfer.files[0]);
     }
@@ -94,11 +80,11 @@ export function FileUpload({
 
       {!selectedFile ? (
         <div
-          className={`border-2 border-dashed rounded-lg p-8 text-center transition-all cursor-pointer ${
-            dragActive
-              ? "border-[#D4A5A5] bg-[#E8C4C4]/20"
-              : "border-[#E8C4C4] hover:border-[#D4A5A5] hover:bg-[#E8C4C4]/10"
-          }`}
+          className="border-2 border-dashed rounded-lg p-8 text-center transition-all cursor-pointer"
+          style={{
+            borderColor: dragActive ? colors.primary : colors.border,
+            backgroundColor: dragActive ? `${colors.primaryLight}33` : "transparent",
+          }}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
           onDragOver={handleDrag}
@@ -126,7 +112,7 @@ export function FileUpload({
       ) : (
         <div
           className="flex items-center justify-between p-4 rounded-lg border"
-          style={{ backgroundColor: colors.background, borderColor: colors.primaryLight }}
+          style={{ backgroundColor: colors.background, borderColor: colors.border }}
         >
           <div className="flex items-center gap-3">
             <FileText className="w-8 h-8" style={{ color: colors.primary }} />

@@ -15,6 +15,18 @@ CREATE TABLE IF NOT EXISTS pacientes (
   notas TEXT
 );
 
+-- Tabla de Configuracion de Branding
+CREATE TABLE IF NOT EXISTS configuracion_branding (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    terapeuta_id UUID REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE,
+    color_primario TEXT DEFAULT '#D4A5A5',
+    modo_oscuro BOOLEAN DEFAULT false,
+    logo_url TEXT,
+    membretada_url TEXT,
+    nombre_clinica TEXT,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
 -- Tabla de Documentos
 CREATE TABLE IF NOT EXISTS documentos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -114,6 +126,7 @@ DROP POLICY IF EXISTS "Usuarios autenticados pueden eliminar citas" ON citas;
 
 DROP POLICY IF EXISTS "Usuarios autenticados pueden ver resultados" ON resultados_tests;
 DROP POLICY IF EXISTS "Usuarios autenticados pueden insertar resultados" ON resultados_tests;
+DROP POLICY IF EXISTS "Terapeutas gestionan su propio branding" ON configuracion_branding;
 
 -- Crear políticas para pacientes
 CREATE POLICY "Usuarios autenticados pueden ver pacientes"
@@ -155,24 +168,56 @@ CREATE POLICY "Usuarios autenticados pueden eliminar tests"
   ON tests FOR DELETE TO authenticated USING (true);
 
 -- Crear políticas para citas
-CREATE POLICY "Usuarios autenticados pueden ver citas"
-  ON citas FOR SELECT TO authenticated USING (true);
+-- Políticas de Seguridad (RLS)
+DROP POLICY IF EXISTS "Solo veo mis pacientes" ON pacientes;
+CREATE POLICY "Solo veo mis pacientes" ON pacientes FOR ALL TO authenticated USING (auth.uid() = terapeuta_id);
 
-CREATE POLICY "Usuarios autenticados pueden insertar citas"
-  ON citas FOR INSERT TO authenticated WITH CHECK (true);
+DROP POLICY IF EXISTS "Solo veo mis documentos" ON documentos;
+CREATE POLICY "Solo veo mis documentos" ON documentos FOR ALL TO authenticated USING (auth.uid() = terapeuta_id);
 
-CREATE POLICY "Usuarios autenticados pueden actualizar citas"
-  ON citas FOR UPDATE TO authenticated USING (true);
+DROP POLICY IF EXISTS "Solo veo mis resultados" ON resultados_tests;
+CREATE POLICY "Solo veo mis resultados" ON resultados_tests FOR ALL TO authenticated USING (auth.uid() = terapeuta_id);
 
-CREATE POLICY "Usuarios autenticados pueden eliminar citas"
-  ON citas FOR DELETE TO authenticated USING (true);
+DROP POLICY IF EXISTS "Solo veo mis citas" ON citas;
+CREATE POLICY "Solo veo mis citas" ON citas FOR ALL TO authenticated USING (auth.uid() = terapeuta_id);
 
--- Crear políticas para resultados_tests
-CREATE POLICY "Usuarios autenticados pueden ver resultados"
-  ON resultados_tests FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Solo veo mis tests" ON tests;
+CREATE POLICY "Solo veo mis tests" ON tests FOR ALL TO authenticated USING (auth.uid() = terapeuta_id);
 
-CREATE POLICY "Usuarios autenticados pueden insertar resultados"
-  ON resultados_tests FOR INSERT TO authenticated WITH CHECK (true);
+DROP POLICY IF EXISTS "Terapeutas gestionan su propio branding" ON configuracion_branding;
+CREATE POLICY "Terapeutas gestionan su propio branding" ON configuracion_branding FOR ALL TO authenticated USING (auth.uid() = terapeuta_id);
+
+-- Función para clonar plantillas a nuevos terapeutas
+CREATE OR REPLACE FUNCTION clonar_plantillas_base(target_user_id UUID)
+RETURNS void AS $$
+BEGIN
+    -- Clonar tests desde el usuario admin (sería tu cuenta root)
+    INSERT INTO tests (nombre, descripcion, preguntas, interpretacion, es_predefinido, terapeuta_id)
+    SELECT nombre, descripcion, preguntas, interpretacion, es_predefinido, target_user_id
+    FROM tests 
+    WHERE terapeuta_id = 'c7a4569c-0c6a-4c91-9556-3c0700000000' -- ID de ejemplo que debes reemplazar
+    ON CONFLICT DO NOTHING;
+
+    -- Clonar resultados de ejemplo si fuera necesario
+    -- INSERT INTO ...
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger para crear configuración por defecto
+CREATE OR REPLACE FUNCTION public.handle_new_user_branding()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.configuracion_branding (terapeuta_id, color_primario, modo_oscuro)
+  VALUES (new.id, '#D4A5A5', false);
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created_branding ON auth.users;
+
+CREATE TRIGGER on_auth_user_created_branding
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user_branding();
 
 -- ============================================
 -- Datos de prueba (Opcional)

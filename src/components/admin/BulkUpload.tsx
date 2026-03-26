@@ -3,16 +3,7 @@
 import { useState, useRef } from "react";
 import { Upload, FileText, X, CheckCircle } from "lucide-react";
 import { Button } from "./Button";
-
-const colors = {
-  primary: "#D4A5A5",
-  primaryLight: "#E8C4C4",
-  primaryDark: "#B88B8B",
-  background: "#FDF8F8",
-  surface: "#FFFFFF",
-  text: "#3D2929",
-  textMuted: "#7D6B6B",
-};
+import { colors } from "@/lib/theme";
 
 interface FileWithStatus {
   file: File;
@@ -137,8 +128,8 @@ export function BulkUpload({ pacienteId, pacienteNombre, onSuccess, onClose }: B
 
       {/* Drop zone */}
       <div
-        className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all hover:border-[#D4A5A5] hover:bg-[#E8C4C4]/10"
-        style={{ borderColor: colors.primaryLight }}
+        className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all"
+        style={{ borderColor: colors.border }}
         onClick={() => inputRef.current?.click()}
       >
         <Upload className="w-12 h-12 mx-auto mb-3" style={{ color: colors.primary }} />

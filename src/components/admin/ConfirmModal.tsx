@@ -2,16 +2,7 @@
 
 import { AlertTriangle, X } from "lucide-react";
 import { Button } from "./Button";
-
-const colors = {
-  primary: "#D4A5A5",
-  primaryLight: "#E8C4C4",
-  primaryDark: "#B88B8B",
-  background: "#FDF8F8",
-  surface: "#FFFFFF",
-  text: "#3D2929",
-  textMuted: "#7D6B6B",
-};
+import { colors } from "@/lib/theme";
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -40,7 +31,7 @@ export function ConfirmModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
       <div className="w-full max-w-md rounded-lg shadow-lg overflow-hidden" style={{ backgroundColor: colors.surface }}>
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: colors.primaryLight }}>
+        <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: colors.border }}>
           <div className="flex items-center gap-3">
             <div
               className="w-10 h-10 rounded-full flex items-center justify-center"
@@ -52,9 +43,10 @@ export function ConfirmModal({
           </div>
           <button
             onClick={onCancel}
-            className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+            className="p-1 rounded-full transition-colors"
+            style={{ color: colors.textMuted }}
           >
-            <X className="w-6 h-6" style={{ color: colors.textMuted }} />
+            <X className="w-6 h-6" />
           </button>
         </div>
 
@@ -64,7 +56,7 @@ export function ConfirmModal({
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 justify-end p-4 border-t" style={{ borderColor: colors.primaryLight }}>
+        <div className="flex gap-3 justify-end p-4 border-t" style={{ borderColor: colors.border }}>
           <Button variant="ghost" onClick={onCancel} disabled={loading}>
             {cancelLabel}
           </Button>
