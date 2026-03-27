@@ -128,64 +128,61 @@ DROP POLICY IF EXISTS "Usuarios autenticados pueden ver resultados" ON resultado
 DROP POLICY IF EXISTS "Usuarios autenticados pueden insertar resultados" ON resultados_tests;
 DROP POLICY IF EXISTS "Terapeutas gestionan su propio branding" ON configuracion_branding;
 
--- Crear políticas para pacientes
-CREATE POLICY "Usuarios autenticados pueden ver pacientes"
-  ON pacientes FOR SELECT TO authenticated USING (true);
+-- ============================================
+-- Políticas RLS - cada terapeuta solo accede a sus propios datos
+-- IMPORTANTE: No crear políticas permisivas USING (true) ya que
+-- permiten a cualquier usuario autenticado ver datos de otros.
+-- ============================================
 
-CREATE POLICY "Usuarios autenticados pueden insertar pacientes"
-  ON pacientes FOR INSERT TO authenticated WITH CHECK (true);
-
-CREATE POLICY "Usuarios autenticados pueden actualizar pacientes"
-  ON pacientes FOR UPDATE TO authenticated USING (true);
-
-CREATE POLICY "Usuarios autenticados pueden eliminar pacientes"
-  ON pacientes FOR DELETE TO authenticated USING (true);
-
--- Crear políticas para documentos
-CREATE POLICY "Usuarios autenticados pueden ver documentos"
-  ON documentos FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY "Usuarios autenticados pueden insertar documentos"
-  ON documentos FOR INSERT TO authenticated WITH CHECK (true);
-
-CREATE POLICY "Usuarios autenticados pueden actualizar documentos"
-  ON documentos FOR UPDATE TO authenticated USING (true);
-
-CREATE POLICY "Usuarios autenticados pueden eliminar documentos"
-  ON documentos FOR DELETE TO authenticated USING (true);
-
--- Crear políticas para tests
-CREATE POLICY "Usuarios autenticados pueden ver tests"
-  ON tests FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY "Usuarios autenticados pueden insertar tests"
-  ON tests FOR INSERT TO authenticated WITH CHECK (true);
-
-CREATE POLICY "Usuarios autenticados pueden actualizar tests"
-  ON tests FOR UPDATE TO authenticated USING (true);
-
-CREATE POLICY "Usuarios autenticados pueden eliminar tests"
-  ON tests FOR DELETE TO authenticated USING (true);
-
--- Crear políticas para citas
--- Políticas de Seguridad (RLS)
+-- pacientes
+DROP POLICY IF EXISTS "Usuarios autenticados pueden ver pacientes" ON pacientes;
+DROP POLICY IF EXISTS "Usuarios autenticados pueden insertar pacientes" ON pacientes;
+DROP POLICY IF EXISTS "Usuarios autenticados pueden actualizar pacientes" ON pacientes;
+DROP POLICY IF EXISTS "Usuarios autenticados pueden eliminar pacientes" ON pacientes;
 DROP POLICY IF EXISTS "Solo veo mis pacientes" ON pacientes;
-CREATE POLICY "Solo veo mis pacientes" ON pacientes FOR ALL TO authenticated USING (auth.uid() = terapeuta_id);
+CREATE POLICY "Solo veo mis pacientes" ON pacientes FOR ALL TO authenticated
+  USING (auth.uid() = terapeuta_id)
+  WITH CHECK (auth.uid() = terapeuta_id);
 
+-- documentos
+DROP POLICY IF EXISTS "Usuarios autenticados pueden ver documentos" ON documentos;
+DROP POLICY IF EXISTS "Usuarios autenticados pueden insertar documentos" ON documentos;
+DROP POLICY IF EXISTS "Usuarios autenticados pueden actualizar documentos" ON documentos;
+DROP POLICY IF EXISTS "Usuarios autenticados pueden eliminar documentos" ON documentos;
 DROP POLICY IF EXISTS "Solo veo mis documentos" ON documentos;
-CREATE POLICY "Solo veo mis documentos" ON documentos FOR ALL TO authenticated USING (auth.uid() = terapeuta_id);
+CREATE POLICY "Solo veo mis documentos" ON documentos FOR ALL TO authenticated
+  USING (auth.uid() = terapeuta_id)
+  WITH CHECK (auth.uid() = terapeuta_id);
 
-DROP POLICY IF EXISTS "Solo veo mis resultados" ON resultados_tests;
-CREATE POLICY "Solo veo mis resultados" ON resultados_tests FOR ALL TO authenticated USING (auth.uid() = terapeuta_id);
-
-DROP POLICY IF EXISTS "Solo veo mis citas" ON citas;
-CREATE POLICY "Solo veo mis citas" ON citas FOR ALL TO authenticated USING (auth.uid() = terapeuta_id);
-
+-- tests
+DROP POLICY IF EXISTS "Usuarios autenticados pueden ver tests" ON tests;
+DROP POLICY IF EXISTS "Usuarios autenticados pueden insertar tests" ON tests;
+DROP POLICY IF EXISTS "Usuarios autenticados pueden actualizar tests" ON tests;
+DROP POLICY IF EXISTS "Usuarios autenticados pueden eliminar tests" ON tests;
 DROP POLICY IF EXISTS "Solo veo mis tests" ON tests;
-CREATE POLICY "Solo veo mis tests" ON tests FOR ALL TO authenticated USING (auth.uid() = terapeuta_id);
+CREATE POLICY "Solo veo mis tests" ON tests FOR ALL TO authenticated
+  USING (auth.uid() = terapeuta_id OR es_predefinido = true)
+  WITH CHECK (auth.uid() = terapeuta_id);
 
+-- resultados_tests
+DROP POLICY IF EXISTS "Usuarios autenticados pueden ver resultados" ON resultados_tests;
+DROP POLICY IF EXISTS "Usuarios autenticados pueden insertar resultados" ON resultados_tests;
+DROP POLICY IF EXISTS "Solo veo mis resultados" ON resultados_tests;
+CREATE POLICY "Solo veo mis resultados" ON resultados_tests FOR ALL TO authenticated
+  USING (auth.uid() = terapeuta_id)
+  WITH CHECK (auth.uid() = terapeuta_id);
+
+-- citas
+DROP POLICY IF EXISTS "Solo veo mis citas" ON citas;
+CREATE POLICY "Solo veo mis citas" ON citas FOR ALL TO authenticated
+  USING (auth.uid() = terapeuta_id)
+  WITH CHECK (auth.uid() = terapeuta_id);
+
+-- configuracion_branding
 DROP POLICY IF EXISTS "Terapeutas gestionan su propio branding" ON configuracion_branding;
-CREATE POLICY "Terapeutas gestionan su propio branding" ON configuracion_branding FOR ALL TO authenticated USING (auth.uid() = terapeuta_id);
+CREATE POLICY "Terapeutas gestionan su propio branding" ON configuracion_branding FOR ALL TO authenticated
+  USING (auth.uid() = terapeuta_id)
+  WITH CHECK (auth.uid() = terapeuta_id);
 
 -- Función para clonar plantillas a nuevos terapeutas
 CREATE OR REPLACE FUNCTION clonar_plantillas_base(target_user_id UUID)

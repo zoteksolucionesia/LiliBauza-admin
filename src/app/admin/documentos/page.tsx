@@ -4,27 +4,23 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { useRouter } from "next/navigation";
-import { 
-  DataTable, 
-  Modal, 
-  Button, 
-  TextArea, 
-  Header, 
-  NotificationManager, 
-  Tabs, 
-  TabPanel, 
-  GeneradorDocumentoModal, 
+import {
+  DataTable,
+  Modal,
+  Button,
+  Header,
+  NotificationManager,
+  Tabs,
+  TabPanel,
+  GeneradorDocumentoModal,
   ConfirmModal,
   EditorRico,
   Input
 } from "@/components/admin";
-import { motion } from "framer-motion";
 import { FileText, FileCheck, FileBadge, Trash2, Eye } from "lucide-react";
 
 import { colors } from "@/lib/theme";
 import { useAuth } from "@/hooks/useAuth";
-import { useTheme } from "@/hooks/useTheme";
 
 interface Plantilla {
   id: string;
@@ -44,7 +40,6 @@ interface Documento {
 }
 
 export default function DocumentosPage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
   const [documentos, setDocumentos] = useState<Documento[]>([]);
@@ -72,8 +67,9 @@ export default function DocumentosPage() {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
+  useAuth();
+
   useEffect(() => {
-    checkAuth();
     loadData();
   }, []);
 
@@ -81,14 +77,6 @@ export default function DocumentosPage() {
     setLoading(true);
     await Promise.all([loadPlantillas(), loadDocumentos(), loadPapelera()]);
     setLoading(false);
-  }
-
-  async function checkAuth() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      router.push("/admin/login");
-      return;
-    }
   }
 
   async function loadPlantillas() {
@@ -102,7 +90,7 @@ export default function DocumentosPage() {
       .order("tipo", { ascending: true });
 
     if (error) {
-      console.error("Error loading plantillas:", error);
+      addNotification("Error al cargar plantillas", "error");
     } else {
       setPlantillas(data || []);
     }
@@ -123,7 +111,7 @@ export default function DocumentosPage() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Error loading documentos:", error);
+      addNotification("Error al cargar documentos", "error");
     } else {
       setDocumentos(data || []);
     }
@@ -144,7 +132,7 @@ export default function DocumentosPage() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Error loading papelera:", error);
+      addNotification("Error al cargar la papelera", "error");
     } else {
       setDocumentosPapelera(data || []);
     }
@@ -557,7 +545,7 @@ function PlantillaForm({ plantilla, onClose, onSuccess, onError }: PlantillaForm
   const [tipo, setTipo] = useState<Plantilla["tipo"]>(plantilla?.tipo || "constancia");
   const [contenido, setContenido] = useState(plantilla?.contenido_base || "");
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (!contenido.trim()) {

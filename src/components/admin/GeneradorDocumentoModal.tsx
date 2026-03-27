@@ -111,23 +111,31 @@ export function GeneradorDocumentoModal({
     }
   }
 
+  const escapeHtml = (text: string): string =>
+    text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+
   const handleTipoChange = (tipo: string) => {
     setSelectedTipo(tipo as Plantilla["tipo"]);
-    
+
     const plantilla = plantillas.find((p) => p.tipo === tipo);
     const pNombreBuffer = paciente?.nombre_completo || pacientes.find(p => p.id === formData.paciente_id)?.nombre_completo || "";
-    const pNombre = pNombreBuffer || "[NOMBRE DEL PACIENTE]";
+    const pNombre = pNombreBuffer ? escapeHtml(pNombreBuffer) : "[NOMBRE DEL PACIENTE]";
 
     if (plantilla) {
       const fechaActual = new Date().toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "numeric" });
-      
+
       let contenidoRellenado = plantilla.contenido_base;
-      
+
       const nombreRegex = /\[[^\]]*NOMBRE[^\]]*PACIENTE[^\]]*\]/gi;
       const fechaRegex = /\[[^\]]*FECHA[^\]]*\]/gi;
 
       contenidoRellenado = contenidoRellenado.replace(nombreRegex, `<strong>${pNombre}</strong>`);
-      contenidoRellenado = contenidoRellenado.replace(fechaRegex, `<strong>${fechaActual}</strong>`);
+      contenidoRellenado = contenidoRellenado.replace(fechaRegex, `<strong>${escapeHtml(fechaActual)}</strong>`);
 
       setFormData({
         ...formData,
@@ -342,7 +350,7 @@ export function GeneradorDocumentoModal({
     return new Blob([finalBytes.buffer as ArrayBuffer], { type: "application/pdf" });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (!selectedTipo) {
@@ -383,7 +391,7 @@ export function GeneradorDocumentoModal({
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) throw new Error("No session");
 
-        const { data, error: dbError } = await supabase
+        const { error: dbError } = await supabase
           .from("documentos")
           .insert({
             paciente_id: formData.paciente_id || null,
@@ -393,9 +401,7 @@ export function GeneradorDocumentoModal({
             storage_url: publicUrl,
             notas: formData.notas,
             terapeuta_id: session.user.id,
-          })
-        .select()
-        .single();
+          });
 
       if (dbError) throw dbError;
 

@@ -47,18 +47,13 @@ export default function PacientesPage() {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
-  useEffect(() => {
-    checkAuth();
-    loadPacientes();
-  }, []);
+  useAuth();
 
-  async function checkAuth() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      router.push("/admin/login");
-      return;
-    }
-  }
+  useEffect(() => {
+    loadPacientes().catch(() => {
+      addNotification("Error al cargar pacientes", "error");
+    });
+  }, []);
 
   async function loadPacientes() {
     const { data: { session } } = await supabase.auth.getSession();

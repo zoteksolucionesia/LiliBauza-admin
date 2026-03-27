@@ -23,12 +23,19 @@ export function BulkUpload({ pacienteId, pacienteNombre, onSuccess, onClose }: B
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const isValidPdf = (file: File): boolean => {
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    return ext === "pdf" && file.type === "application/pdf";
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const newFiles: FileWithStatus[] = Array.from(e.target.files).map((file) => ({
-        file,
-        status: "pending" as const,
-      }));
+      const newFiles: FileWithStatus[] = Array.from(e.target.files).map((file) => {
+        if (!isValidPdf(file)) {
+          return { file, status: "error" as const, error: "Solo se permiten archivos PDF válidos" };
+        }
+        return { file, status: "pending" as const };
+      });
       setFiles((prev) => [...prev, ...newFiles]);
     }
   };
@@ -54,9 +61,13 @@ export function BulkUpload({ pacienteId, pacienteNombre, onSuccess, onClose }: B
         prev.map((f, idx) => (idx === i ? { ...f, status: "uploading" as const } : f))
       );
 
+      if (fileItem.status === "error") {
+        errorCount++;
+        continue;
+      }
+
       try {
-        const fileExt = fileItem.file.name.split(".").pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.pdf`;
 
         // Upload to Storage
         const { error: uploadError } = await supabase.storage
