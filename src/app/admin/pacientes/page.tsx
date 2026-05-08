@@ -161,13 +161,11 @@ export default function PacientesPage() {
             columns={columns}
             data={filteredPacientes}
             onRowClick={(row) => {
-              setSelectedPaciente(row);
-              setIsModalOpen(true);
+              router.push(`/admin/pacientes/${row.id}`);
             }}
             actions={(row) => (
               <Button size="sm" onClick={() => {
-                setSelectedPaciente(row);
-                setIsModalOpen(true);
+                router.push(`/admin/pacientes/${row.id}`);
               }}>
                 Ver
               </Button>
