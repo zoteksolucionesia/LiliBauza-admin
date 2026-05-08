@@ -474,8 +474,8 @@ export default function DocumentosPage() {
         size="xl"
       >
         {selectedDoc && (
-          <div>
-            <div className="mb-4 flex items-center justify-between">
+          <div className="flex flex-col h-full gap-4">
+            <div className="flex items-center justify-between flex-shrink-0">
               <div>
                 <p className="text-sm" style={{ color: colors.textMuted }}>
                   <strong>Paciente:</strong> {selectedDoc.pacientes?.nombre_completo}
@@ -494,11 +494,11 @@ export default function DocumentosPage() {
                 📥 Descargar PDF
               </a>
             </div>
-            <div className="border rounded-lg overflow-hidden bg-gray-100" style={{ borderColor: colors.primaryLight }}>
+            <div className="border rounded-lg overflow-hidden bg-gray-100 flex-1" style={{ borderColor: colors.primaryLight }}>
               <iframe
                 src={selectedDoc.storage_url}
-                className="w-full"
-                style={{ height: "70vh" }}
+                className="w-full h-full"
+                style={{ minHeight: "80vh" }}
                 title="Visor de PDF"
               />
             </div>
@@ -591,10 +591,10 @@ function PlantillaForm({ plantilla, onClose, onSuccess, onError }: PlantillaForm
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div className="grid grid-cols-1 gap-4">
+    <form onSubmit={handleSubmit} className="flex flex-col h-full gap-4">
+      <div className="flex-1 overflow-y-auto space-y-4">
         {!plantilla && (
-          <div className="mb-4">
+          <div>
             <Input
               label="Nombre de la Plantilla"
               value={tipo}
@@ -605,14 +605,16 @@ function PlantillaForm({ plantilla, onClose, onSuccess, onError }: PlantillaForm
           </div>
         )}
 
-        <EditorRico
-          label="Contenido de la Plantilla"
-          value={contenido}
-          onChange={setContenido}
-          placeholder="Escribe el texto de la plantilla aquí..."
-        />
-        
-        <div className="p-3 rounded-lg bg-blue-50 border border-blue-100 mt-8">
+        <div className="flex-1">
+          <EditorRico
+            label="Contenido de la Plantilla"
+            value={contenido}
+            onChange={setContenido}
+            placeholder="Escribe el texto de la plantilla aquí..."
+          />
+        </div>
+
+        <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
           <p className="text-xs font-semibold text-blue-800 mb-1">💡 Variables dinámicas:</p>
           <p className="text-xs text-blue-700 leading-relaxed">
             Usa <code className="bg-white px-1 rounded border border-blue-200">[NOMBRE DEL PACIENTE]</code> para que se autocompleta con el nombre real y <code className="bg-white px-1 rounded border border-blue-200">[FECHA]</code> para la fecha actual.
@@ -620,7 +622,7 @@ function PlantillaForm({ plantilla, onClose, onSuccess, onError }: PlantillaForm
         </div>
       </div>
 
-      <div className="flex gap-3 justify-end mt-6">
+      <div className="flex gap-3 justify-end flex-shrink-0 border-t pt-4" style={{ borderColor: colors.border }}>
         <Button type="button" variant="ghost" onClick={onClose}>
           Cancelar
         </Button>

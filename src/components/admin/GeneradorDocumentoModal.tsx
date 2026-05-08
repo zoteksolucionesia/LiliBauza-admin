@@ -446,8 +446,8 @@ export function GeneradorDocumentoModal({
       title={paciente ? `Generar Documento para ${paciente.nombre_completo}` : "Generar Nuevo Documento"}
       size="xl"
     >
-      <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 gap-4">
+      <form onSubmit={handleSubmit} className="flex flex-col h-full gap-4">
+        <div className="flex-1 overflow-y-auto space-y-4">
           {paciente ? (
             <Input
               label="Paciente"
@@ -480,7 +480,7 @@ export function GeneradorDocumentoModal({
           />
 
           {selectedTipo && (
-            <div className="p-3 rounded-lg flex items-center gap-2 mb-2" style={{ backgroundColor: colors.surface, borderLeft: `3px solid ${colors.primary}` }}>
+            <div className="p-3 rounded-lg flex items-center gap-2" style={{ backgroundColor: colors.surface, borderLeft: `3px solid ${colors.primary}` }}>
               <span>💡</span>
               <p className="text-sm" style={{ color: colors.text }}>
                 La plantilla para <strong>{selectedTipo}</strong> ha sido cargada y los datos del paciente han sido autocompletados. Puedes ajustar el texto libremente antes de generar el documento final.
@@ -497,13 +497,15 @@ export function GeneradorDocumentoModal({
             disabled={!selectedTipo}
           />
 
-          <EditorRico
-            label="Contenido del Documento"
-            value={formData.contenido}
-            onChange={(val) => setFormData({ ...formData, contenido: val })}
-            placeholder="Selecciona el tipo de documento para cargar la plantilla..."
-            disabled={!selectedTipo}
-          />
+          <div className="flex-1">
+            <EditorRico
+              label="Contenido del Documento"
+              value={formData.contenido}
+              onChange={(val) => setFormData({ ...formData, contenido: val })}
+              placeholder="Selecciona el tipo de documento para cargar la plantilla..."
+              disabled={!selectedTipo}
+            />
+          </div>
 
           <TextArea
             label="Notas internas (opcional, no se imprimirán)"
@@ -515,7 +517,7 @@ export function GeneradorDocumentoModal({
           />
         </div>
 
-        <div className="flex justify-end gap-3 mt-6">
+        <div className="flex justify-end gap-3 flex-shrink-0 border-t pt-4" style={{ borderColor: colors.border }}>
           <Button type="button" variant="ghost" onClick={onClose}>
             Cancelar
           </Button>
