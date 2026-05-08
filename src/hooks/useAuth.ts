@@ -21,7 +21,7 @@ export function useAuth() {
       } = await supabase.auth.getSession();
 
       if (!session) {
-        window.location.href = "/admin/login";
+        router.push("/admin/login");
         return;
       }
 
@@ -30,7 +30,7 @@ export function useAuth() {
     }
 
     checkSession();
-  }, [router]);
+  }, []);
 
   return { session, loading };
 }

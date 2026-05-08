@@ -4,12 +4,11 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { useRouter } from "next/navigation";
 import { DataTable, SearchBar, Modal, Button, Input, Select, TextArea, Header } from "@/components/admin";
-import { motion } from "framer-motion";
 import { Calendar } from "lucide-react";
 
 import { colors } from "@/lib/theme";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Cita {
   id: string;
@@ -31,7 +30,7 @@ interface Paciente {
 }
 
 export default function CitasPage() {
-  const router = useRouter();
+  useAuth();
   const [loading, setLoading] = useState(true);
   const [citas, setCitas] = useState<Cita[]>([]);
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
@@ -40,18 +39,9 @@ export default function CitasPage() {
   const [filtroEstado, setFiltroEstado] = useState<string>("todos");
 
   useEffect(() => {
-    checkAuth();
     loadCitas();
     loadPacientes();
   }, []);
-
-  async function checkAuth() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      router.push("/admin/login");
-      return;
-    }
-  }
 
   async function loadCitas() {
     const { data, error } = await supabase
@@ -136,11 +126,7 @@ export default function CitasPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
+        <div>
           {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div className="p-4 rounded-lg flex items-center gap-4" style={{ backgroundColor: colors.surface }}>
@@ -231,7 +217,7 @@ export default function CitasPage() {
             )}
             emptyMessage="No hay citas registradas"
           />
-        </motion.div>
+        </div>
       </main>
 
       {/* Modal para agendar cita */}

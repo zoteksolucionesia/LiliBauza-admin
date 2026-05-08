@@ -3,16 +3,7 @@
 import { useState, useRef } from "react";
 import { Upload, FileText, X, CheckCircle } from "lucide-react";
 import { Button } from "./Button";
-
-const colors = {
-  primary: "#D4A5A5",
-  primaryLight: "#E8C4C4",
-  primaryDark: "#B88B8B",
-  background: "#FDF8F8",
-  surface: "#FFFFFF",
-  text: "#3D2929",
-  textMuted: "#7D6B6B",
-};
+import { colors } from "@/lib/theme";
 
 interface FileWithStatus {
   file: File;
@@ -32,12 +23,19 @@ export function BulkUpload({ pacienteId, pacienteNombre, onSuccess, onClose }: B
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const isValidPdf = (file: File): boolean => {
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    return ext === "pdf" && file.type === "application/pdf";
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const newFiles: FileWithStatus[] = Array.from(e.target.files).map((file) => ({
-        file,
-        status: "pending" as const,
-      }));
+      const newFiles: FileWithStatus[] = Array.from(e.target.files).map((file) => {
+        if (!isValidPdf(file)) {
+          return { file, status: "error" as const, error: "Solo se permiten archivos PDF válidos" };
+        }
+        return { file, status: "pending" as const };
+      });
       setFiles((prev) => [...prev, ...newFiles]);
     }
   };
@@ -63,9 +61,13 @@ export function BulkUpload({ pacienteId, pacienteNombre, onSuccess, onClose }: B
         prev.map((f, idx) => (idx === i ? { ...f, status: "uploading" as const } : f))
       );
 
+      if (fileItem.status === "error") {
+        errorCount++;
+        continue;
+      }
+
       try {
-        const fileExt = fileItem.file.name.split(".").pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.pdf`;
 
         // Upload to Storage
         const { error: uploadError } = await supabase.storage
@@ -137,8 +139,8 @@ export function BulkUpload({ pacienteId, pacienteNombre, onSuccess, onClose }: B
 
       {/* Drop zone */}
       <div
-        className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all hover:border-[#D4A5A5] hover:bg-[#E8C4C4]/10"
-        style={{ borderColor: colors.primaryLight }}
+        className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all"
+        style={{ borderColor: colors.border }}
         onClick={() => inputRef.current?.click()}
       >
         <Upload className="w-12 h-12 mx-auto mb-3" style={{ color: colors.primary }} />

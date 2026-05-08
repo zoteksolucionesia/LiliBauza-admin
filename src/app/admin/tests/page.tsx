@@ -10,6 +10,8 @@ import { motion } from "framer-motion";
 import { ClipboardList, Plus, Trash2, Edit } from "lucide-react";
 
 import { colors } from "@/lib/theme";
+import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "@/hooks/useTheme";
 
 interface Pregunta {
   id: string;
@@ -66,9 +68,13 @@ export default function TestsPage() {
   }
 
   async function loadTests() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
     const { data, error } = await supabase
       .from("tests")
       .select("*")
+      .or(`terapeuta_id.eq.${session.user.id},es_predefinido.eq.true`)
       .order("nombre", { ascending: true });
 
     if (error) {
@@ -81,9 +87,13 @@ export default function TestsPage() {
   }
 
   async function loadPacientes() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
     const { data, error } = await supabase
       .from("pacientes")
       .select("id, nombre_completo")
+      .eq("terapeuta_id", session.user.id)
       .eq("activo", true)
       .order("nombre_completo", { ascending: true });
 
@@ -339,12 +349,16 @@ function TestBuilder({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     setLoading(true);
 
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("No session");
+
     const { error } = await supabase.from("tests").insert({
       nombre: formData.nombre,
       descripcion: formData.descripcion,
       preguntas: preguntas,
       interpretacion: formData.interpretacion,
       es_predefinido: false,
+      terapeuta_id: session.user.id,
       fecha_creacion: new Date().toISOString(),
     });
 
@@ -612,6 +626,9 @@ function ApplyTestForm({ test, pacientes, addNotification, onClose }: {
       const paciente = pacientes.find((p) => p.id === selectedPaciente);
       const puntajeTotal = calcularPuntaje();
 
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("No session");
+
       // Guardar resultado
       const { error } = await supabase.from("resultados_tests").insert({
         test_id: test.id,
@@ -622,6 +639,7 @@ function ApplyTestForm({ test, pacientes, addNotification, onClose }: {
         puntaje_total: puntajeTotal,
         interpretacion: test.interpretacion || "",
         completado: true,
+        terapeuta_id: session.user.id,
         fecha_completado: new Date().toISOString(),
         created_at: new Date().toISOString(),
       });
@@ -672,7 +690,7 @@ function ApplyTestForm({ test, pacientes, addNotification, onClose }: {
                     onClick={() => handleRespuesta(pregunta.id, num)}
                     className={`w-10 h-10 rounded-lg font-medium transition-all ${respuestas[pregunta.id] === num
                         ? "text-white"
-                        : "border hover:border-[#D4A5A5]"
+                        : "border"
                       }`}
                     style={{
                       backgroundColor: respuestas[pregunta.id] === num ? colors.primary : "transparent",

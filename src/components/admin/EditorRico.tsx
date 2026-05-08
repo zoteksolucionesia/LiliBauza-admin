@@ -23,6 +23,7 @@ export function EditorRico({ value, onChange, label, placeholder, disabled }: Ed
   const modules = {
     toolbar: [
       [{ header: [1, 2, false] }],
+      [{ size: ["small", false, "large", "huge"] }],
       ["bold", "italic", "underline", "strike"],
       [{ list: "ordered" }, { list: "bullet" }],
       [{ align: [] }],
@@ -32,6 +33,7 @@ export function EditorRico({ value, onChange, label, placeholder, disabled }: Ed
 
   const formats = [
     "header",
+    "size",
     "bold",
     "italic",
     "underline",

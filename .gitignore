@@ -4,5 +4,7 @@ out
 build
 .env
 .env.local
+.env.production
+.firebase
 .DS_Store
 *.log

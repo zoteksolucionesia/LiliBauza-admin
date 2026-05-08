@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { colors } from "@/lib/theme";
 
 interface Column {
   key: string;
@@ -24,26 +24,26 @@ export function DataTable({
   emptyMessage = "No hay datos disponibles",
 }: DataTableProps) {
   return (
-    <div className="overflow-x-auto rounded-lg border" style={{ borderColor: "#E8C4C4" }}>
+    <div className="overflow-x-auto rounded-lg border" style={{ borderColor: colors.border }}>
       <table className="w-full">
-        <thead style={{ backgroundColor: "#FDF8F8" }}>
+        <thead style={{ backgroundColor: colors.background }}>
           <tr>
             {columns.map((col) => (
               <th
                 key={col.key}
                 className="px-4 py-3 text-left text-sm font-semibold"
-                style={{ color: "#3D2929" }}
+                style={{ color: colors.text }}
               >
                 {col.label}
               </th>
             ))}
-            {actions && <th className="px-4 py-3 text-right text-sm font-semibold" style={{ color: "#3D2929" }}>Acciones</th>}
+            {actions && <th className="px-4 py-3 text-right text-sm font-semibold" style={{ color: colors.text }}>Acciones</th>}
           </tr>
         </thead>
         <tbody>
           {data.length === 0 ? (
             <tr>
-              <td colSpan={columns.length + (actions ? 1 : 0)} className="px-4 py-8 text-center" style={{ color: "#7D6B6B" }}>
+              <td colSpan={columns.length + (actions ? 1 : 0)} className="px-4 py-8 text-center" style={{ color: colors.textMuted }}>
                 {emptyMessage}
               </td>
             </tr>
@@ -52,11 +52,11 @@ export function DataTable({
               <tr
                 key={row.id || idx}
                 className="border-t hover:bg-opacity-50 transition-colors cursor-pointer"
-                style={{ borderColor: "#E8C4C444" }}
+                style={{ borderColor: colors.border }}
                 onClick={() => onRowClick?.(row)}
               >
                 {columns.map((col) => (
-                  <td key={col.key} className="px-4 py-3 text-sm" style={{ color: "#3D2929" }}>
+                  <td key={col.key} className="px-4 py-3 text-sm" style={{ color: colors.text }}>
                     {col.render ? col.render(row[col.key], row) : row[col.key]}
                   </td>
                 ))}
