@@ -154,8 +154,9 @@ export function GeneradorDocumentoModal({
   // =====================================================
   // generatePDF: Renderizado NATIVO con jsPDF
   // Usa splitTextToSize() que GARANTIZA no cortar palabras
+  // docId: UUID del documento, se embebe en el QR de verificación
   // =====================================================
-  const generatePDF = async (content: string) => {
+  const generatePDF = async (content: string, docId: string) => {
     const contentDoc = new jsPDF({
       orientation: "p",
       unit: "mm",
@@ -288,6 +289,27 @@ export function GeneradorDocumentoModal({
     }
 
     // =====================================================
+    // SELLO DIGITAL: QR de verificación en última página
+    // Se añade al contentDoc antes de combinar con membretada
+    // =====================================================
+    try {
+      const QRCode = (await import("qrcode")).default;
+      const verifyUrl = `https://lilibauza-admin.web.app/verificar/${docId}`;
+      const qrDataUrl: string = await QRCode.toDataURL(verifyUrl, { width: 120, margin: 1 });
+      const qrBase64 = qrDataUrl.replace("data:image/png;base64,", "");
+      const qrSize = 22; // mm
+      const qrX = pageWidth - mr - qrSize;
+      const qrY = pageHeight - mb - qrSize - 2;
+      contentDoc.addImage(qrBase64, "PNG", qrX, qrY, qrSize, qrSize);
+      contentDoc.setFontSize(5.5);
+      contentDoc.setFont("helvetica", "normal");
+      contentDoc.setTextColor(130, 130, 130);
+      contentDoc.text("Sello Digital", qrX + qrSize / 2, pageHeight - mb + 2, { align: "center" });
+    } catch {
+      // QR no crítico — continúa sin él si falla
+    }
+
+    // =====================================================
     // FASE 2: Combinar con la hoja membretada usando pdf-lib
     // =====================================================
     
@@ -366,9 +388,12 @@ export function GeneradorDocumentoModal({
     setLoading(true);
 
     try {
-      // 1. Generar PDF con Branding y HTML
-      const blob = await generatePDF(formData.contenido);
-      
+      // 1. Generar UUID del documento ANTES del PDF para embeber en QR
+      const docId = crypto.randomUUID();
+
+      // 2. Generar PDF con Branding, HTML y QR de verificación
+      const blob = await generatePDF(formData.contenido, docId);
+
       const fileExt = "pdf";
       const safeTitle = formData.titulo.replace(/[^a-z0-9]/gi, "_").toLowerCase();
       const fileName = `${safeTitle}_${Date.now()}.${fileExt}`;
@@ -394,6 +419,7 @@ export function GeneradorDocumentoModal({
         const { error: dbError } = await supabase
           .from("documentos")
           .insert({
+            id: docId,
             paciente_id: formData.paciente_id || null,
             tipo: selectedTipo,
             titulo: formData.titulo,

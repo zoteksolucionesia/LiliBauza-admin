@@ -10,8 +10,6 @@ import { motion } from "framer-motion";
 import { ClipboardList, Plus, Trash2, Edit } from "lucide-react";
 
 import { colors } from "@/lib/theme";
-import { useAuth } from "@/hooks/useAuth";
-import { useTheme } from "@/hooks/useTheme";
 
 interface Pregunta {
   id: string;
@@ -92,7 +90,7 @@ export default function TestsPage() {
 
     const { data, error } = await supabase
       .from("pacientes")
-      .select("id, nombre_completo")
+      .select("id, nombre_completo, email")
       .eq("terapeuta_id", session.user.id)
       .eq("activo", true)
       .order("nombre_completo", { ascending: true });
@@ -586,6 +584,8 @@ function ApplyTestForm({ test, pacientes, addNotification, onClose }: {
   const [selectedPaciente, setSelectedPaciente] = useState("");
   const [respuestas, setRespuestas] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
+  const [enviandoEmail, setEnviandoEmail] = useState(false);
+  const [resultado, setResultado] = useState<{ id: string; puntaje: number; interpretacion: string; emailPaciente: string; nombrePaciente: string } | null>(null);
 
   const handleRespuesta = (preguntaId: string, valor: any) => {
     setRespuestas((prev) => ({ ...prev, [preguntaId]: valor }));
@@ -621,6 +621,7 @@ function ApplyTestForm({ test, pacientes, addNotification, onClose }: {
     }
 
     setLoading(true);
+    addNotification("Guardando y generando interpretación con IA...", "info");
 
     try {
       const paciente = pacientes.find((p) => p.id === selectedPaciente);
@@ -629,31 +630,153 @@ function ApplyTestForm({ test, pacientes, addNotification, onClose }: {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("No session");
 
-      // Guardar resultado
-      const { error } = await supabase.from("resultados_tests").insert({
-        test_id: test.id,
-        paciente_id: selectedPaciente,
-        email_paciente: paciente?.email || "",
-        nombre_paciente: paciente?.nombre_completo || "",
-        respuestas: respuestas,
-        puntaje_total: puntajeTotal,
-        interpretacion: test.interpretacion || "",
-        completado: true,
-        terapeuta_id: session.user.id,
-        fecha_completado: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-      });
+      // Obtener interpretación con IA
+      let interpretacionIA = test.interpretacion || "";
+      try {
+        const resp = await fetch("/api/interpretar-test", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            testNombre: test.nombre,
+            testDescripcion: test.descripcion,
+            preguntas: test.preguntas,
+            respuestas,
+            puntajeTotal,
+            interpretacionManual: test.interpretacion,
+          }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          interpretacionIA = data.interpretacion || interpretacionIA;
+        }
+      } catch {
+        // Si la IA falla, usamos la interpretación manual
+      }
+
+      // Guardar resultado con interpretación IA y obtener ID
+      const { data: insertedRows, error } = await supabase
+        .from("resultados_tests")
+        .insert({
+          test_id: test.id,
+          paciente_id: selectedPaciente,
+          email_paciente: paciente?.email || "",
+          nombre_paciente: paciente?.nombre_completo || "",
+          respuestas,
+          puntaje_total: puntajeTotal,
+          interpretacion: interpretacionIA,
+          interpretacion_ia: interpretacionIA,
+          completado: true,
+          email_enviado: false,
+          terapeuta_id: session.user.id,
+          fecha_completado: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
 
       if (error) throw error;
 
-      addNotification("Test aplicado y guardado exitosamente", "success");
-      onClose();
+      setResultado({
+        id: insertedRows.id,
+        puntaje: puntajeTotal,
+        interpretacion: interpretacionIA,
+        emailPaciente: paciente?.email || "",
+        nombrePaciente: paciente?.nombre_completo || "",
+      });
     } catch (error: any) {
       addNotification(`Error: ${error.message}`, "error");
     } finally {
       setLoading(false);
     }
   };
+
+  const enviarEmail = async () => {
+    if (!resultado) return;
+    setEnviandoEmail(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("No session");
+
+      const { data: branding } = await supabase
+        .from("configuracion_branding")
+        .select("nombre_clinica")
+        .eq("terapeuta_id", session.user.id)
+        .single();
+
+      const resp = await fetch("/api/enviar-resultados", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          emailPaciente: resultado.emailPaciente,
+          nombrePaciente: resultado.nombrePaciente,
+          testNombre: test.nombre,
+          puntajeTotal: resultado.puntaje,
+          interpretacion: resultado.interpretacion,
+          nombreClinica: branding?.nombre_clinica || "",
+          resultadoId: resultado.id,
+        }),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json();
+        throw new Error(err.error || "Error al enviar");
+      }
+
+      addNotification("Resultados enviados por email al paciente", "success");
+      onClose();
+    } catch (error: any) {
+      addNotification(`Error al enviar email: ${error.message}`, "error");
+    } finally {
+      setEnviandoEmail(false);
+    }
+  };
+
+  // Pantalla de éxito con interpretación IA y opción de email
+  if (resultado) {
+    return (
+      <div>
+        <div className="mb-4 p-4 rounded-lg flex items-start gap-3" style={{ backgroundColor: "#f0fdf4", border: "1px solid #86efac" }}>
+          <span className="text-2xl">✅</span>
+          <div>
+            <p className="font-semibold text-green-800">Test aplicado exitosamente</p>
+            <p className="text-sm text-green-700">Puntaje total: <strong>{resultado.puntaje}</strong></p>
+          </div>
+        </div>
+
+        <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: colors.surface, border: `1px solid ${colors.primaryLight}` }}>
+          <p className="font-semibold mb-2 text-sm" style={{ color: colors.primary }}>🤖 Interpretación generada por IA</p>
+          <p className="text-sm whitespace-pre-line" style={{ color: colors.text, lineHeight: "1.7" }}>
+            {resultado.interpretacion}
+          </p>
+        </div>
+
+        <div className="flex gap-3 justify-end">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Cerrar
+          </Button>
+          {resultado.emailPaciente ? (
+            <Button
+              type="button"
+              onClick={enviarEmail}
+              disabled={enviandoEmail}
+            >
+              {enviandoEmail ? "Enviando..." : `📧 Enviar a ${resultado.emailPaciente}`}
+            </Button>
+          ) : (
+            <p className="text-sm self-center" style={{ color: colors.textMuted }}>
+              (El paciente no tiene email registrado)
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit}>
@@ -682,16 +805,13 @@ function ApplyTestForm({ test, pacientes, addNotification, onClose }: {
             </p>
 
             {pregunta.tipo === "escala" && (
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {Array.from({ length: (pregunta.puntaje_max || 10) + 1 }, (_, i) => i).map((num) => (
                   <button
                     key={num}
                     type="button"
                     onClick={() => handleRespuesta(pregunta.id, num)}
-                    className={`w-10 h-10 rounded-lg font-medium transition-all ${respuestas[pregunta.id] === num
-                        ? "text-white"
-                        : "border"
-                      }`}
+                    className={`w-10 h-10 rounded-lg font-medium transition-all ${respuestas[pregunta.id] === num ? "text-white" : "border"}`}
                     style={{
                       backgroundColor: respuestas[pregunta.id] === num ? colors.primary : "transparent",
                       borderColor: respuestas[pregunta.id] === num ? colors.primary : colors.primaryLight,
@@ -740,7 +860,7 @@ function ApplyTestForm({ test, pacientes, addNotification, onClose }: {
           Cancelar
         </Button>
         <Button type="submit" disabled={loading}>
-          {loading ? "Guardando..." : "Guardar Resultados"}
+          {loading ? "Analizando con IA..." : "Guardar y Analizar"}
         </Button>
       </div>
     </form>
