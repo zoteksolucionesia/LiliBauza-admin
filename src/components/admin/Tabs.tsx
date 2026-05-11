@@ -54,18 +54,8 @@ export function Tabs({ tabs, defaultTab, children }: TabsProps) {
         ))}
       </div>
 
-      {/* Tab Content — altura fija para que NO cambie de tamaño entre pestañas */}
-      <div
-        className="p-4 rounded-b-lg rounded-tr-lg"
-        style={{
-          backgroundColor: colors.surface,
-          border: `3px solid ${colors.border}`,
-          borderTop: "none",
-          boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-          height: "400px",
-          overflowY: "auto",
-        }}
-      >
+      {/* Tab Content */}
+      <div className="pt-6">
         {childrenArray.find((child) => (child as any).props?.tabId === activeTab)}
       </div>
     </div>
