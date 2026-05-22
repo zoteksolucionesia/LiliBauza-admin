@@ -6,7 +6,7 @@ import { Header, Button, Input, NotificationManager } from "@/components/admin";
 import { useTheme } from "@/hooks/useTheme";
 import { colors as themeColors } from "@/lib/theme";
 import { motion } from "framer-motion";
-import { Palette, Moon, Sun, Save, RefreshCw } from "lucide-react";
+import { Palette, Moon, Sun, Save, RefreshCw, BadgeCheck } from "lucide-react";
 
 export default function ConfiguracionPage() {
   const { 
@@ -30,8 +30,63 @@ export default function ConfiguracionPage() {
   const [membretadaFile, setMembretadaFile] = useState<File | null>(null);
   const [membretadaPreview, setMembretadaPreview] = useState<string | null>(null); // Cargaremos del config si existe
 
+  // Credenciales profesionales (firma digital)
+  const [nombreTerapeuta, setNombreTerapeuta] = useState("");
+  const [cedulaProfesional, setCedulaProfesional] = useState("");
+  const [cedulaMaestria, setCedulaMaestria] = useState("");
+  const [emailClinica, setEmailClinica] = useState("");
+  const [telefonoClinica, setTelefonoClinica] = useState("");
+  const [credencialesIniciales, setCredencialesIniciales] = useState({
+    nombre_terapeuta: "",
+    cedula_profesional: "",
+    cedula_maestria: "",
+    email_clinica: "",
+    telefono_clinica: "",
+  });
+
   const [loading, setLoading] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const { data } = await supabase
+        .from("configuracion_branding")
+        .select("nombre_terapeuta, cedula_profesional, cedula_maestria, email_clinica, telefono_clinica")
+        .eq("terapeuta_id", session.user.id)
+        .single();
+      if (cancelled || !data) return;
+      setNombreTerapeuta(data.nombre_terapeuta ?? "");
+      setCedulaProfesional(data.cedula_profesional ?? "");
+      setCedulaMaestria(data.cedula_maestria ?? "");
+      setEmailClinica(data.email_clinica ?? "");
+      setTelefonoClinica(data.telefono_clinica ?? "");
+      setCredencialesIniciales({
+        nombre_terapeuta: data.nombre_terapeuta ?? "",
+        cedula_profesional: data.cedula_profesional ?? "",
+        cedula_maestria: data.cedula_maestria ?? "",
+        email_clinica: data.email_clinica ?? "",
+        telefono_clinica: data.telefono_clinica ?? "",
+      });
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const credencialesChanged = () =>
+    nombreTerapeuta !== credencialesIniciales.nombre_terapeuta ||
+    cedulaProfesional !== credencialesIniciales.cedula_profesional ||
+    cedulaMaestria !== credencialesIniciales.cedula_maestria ||
+    emailClinica !== credencialesIniciales.email_clinica ||
+    telefonoClinica !== credencialesIniciales.telefono_clinica;
+
+  const branchHasChanges = () =>
+    localPrimaryColor !== primaryColor ||
+    localNombreClinica !== nombreClinica ||
+    !!logoFile ||
+    !!membretadaFile ||
+    credencialesChanged();
 
   useEffect(() => {
     setLocalPrimaryColor(primaryColor);
@@ -99,6 +154,11 @@ export default function ConfiguracionPage() {
         color_primario: localPrimaryColor,
         nombre_clinica: localNombreClinica,
         logo_url: finalLogoUrl,
+        nombre_terapeuta: nombreTerapeuta || null,
+        cedula_profesional: cedulaProfesional || null,
+        cedula_maestria: cedulaMaestria || null,
+        email_clinica: emailClinica || null,
+        telefono_clinica: telefonoClinica || null,
         updated_at: new Date().toISOString()
       };
 
@@ -117,7 +177,14 @@ export default function ConfiguracionPage() {
       setLogoUrl(finalLogoUrl);
       setNombreClinica(localNombreClinica);
       await updateBranding(localPrimaryColor);
-      
+      setCredencialesIniciales({
+        nombre_terapeuta: nombreTerapeuta,
+        cedula_profesional: cedulaProfesional,
+        cedula_maestria: cedulaMaestria,
+        email_clinica: emailClinica,
+        telefono_clinica: telefonoClinica,
+      });
+
       addNotification("Configuración guardada exitosamente", "success");
     } catch (error: any) {
       addNotification(`Error: ${error.message}`, "error");
@@ -163,7 +230,7 @@ export default function ConfiguracionPage() {
         subtitle="Personaliza tu espacio de trabajo y branding"
       />
 
-      <main className="max-w-4xl mx-auto px-4 py-8">
+      <main className="max-w-5xl mx-auto px-4 py-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           
           {/* Branding Section */}
@@ -317,12 +384,11 @@ export default function ConfiguracionPage() {
               </div>
 
               <div className="pt-4 border-t" style={{ borderColor: themeColors.primaryLight }}>
-                <Button 
-                  onClick={handleSave} 
-                  disabled={loading || (localPrimaryColor === primaryColor && localNombreClinica === nombreClinica && !logoFile && !membretadaFile)}
+                <Button
+                  onClick={handleSave}
+                  disabled={loading || !branchHasChanges()}
                   className="w-full flex items-center justify-center gap-2"
                 >
-"
                   {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   {loading ? "Guardando Configuración..." : "Guardar y Aplicar"}
                 </Button>
@@ -330,8 +396,86 @@ export default function ConfiguracionPage() {
             </div>
           </motion.div>
 
+          {/* Credenciales Profesionales (Firma Digital) */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="p-6 rounded-2xl shadow-sm border md:col-span-2"
+            style={{ backgroundColor: themeColors.surface, borderColor: themeColors.primaryLight }}
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <BadgeCheck className="w-6 h-6" style={{ color: themeColors.primary }} />
+              <h2 className="text-xl font-bold" style={{ color: themeColors.text }}>Credenciales Profesionales</h2>
+            </div>
+            <p className="text-sm mb-6" style={{ color: themeColors.textMuted }}>
+              Estos datos se incluyen como sello de firma digital en cada PDF generado y se muestran al verificar el documento vía QR.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: themeColors.text }}>
+                  Nombre del Profesional
+                </label>
+                <Input
+                  value={nombreTerapeuta}
+                  onChange={(e) => setNombreTerapeuta(e.target.value)}
+                  placeholder="Ej. Mtra. Liliana Bauza De Casso"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: themeColors.text }}>
+                  Cédula Profesional
+                </label>
+                <Input
+                  value={cedulaProfesional}
+                  onChange={(e) => setCedulaProfesional(e.target.value)}
+                  placeholder="Ej. 3398478"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: themeColors.text }}>
+                  Cédula de Maestría
+                </label>
+                <Input
+                  value={cedulaMaestria}
+                  onChange={(e) => setCedulaMaestria(e.target.value)}
+                  placeholder="Ej. 4464187"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: themeColors.text }}>
+                  Email Profesional
+                </label>
+                <Input
+                  type="email"
+                  value={emailClinica}
+                  onChange={(e) => setEmailClinica(e.target.value)}
+                  placeholder="Ej. consulta@tudominio.com"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-2" style={{ color: themeColors.text }}>
+                  Teléfono de Contacto
+                </label>
+                <Input
+                  value={telefonoClinica}
+                  onChange={(e) => setTelefonoClinica(e.target.value)}
+                  placeholder="Ej. 312.145.6877"
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 p-3 rounded-lg" style={{ background: themeColors.background, border: `1px dashed ${themeColors.primaryLight}` }}>
+              <p className="text-xs leading-relaxed" style={{ color: themeColors.textMuted }}>
+                <strong style={{ color: themeColors.text }}>Aviso:</strong> los datos se imprimen al pie del PDF junto al QR de verificación y se muestran en la página pública{" "}
+                <code style={{ background: themeColors.surface, padding: "1px 6px", borderRadius: "4px" }}>/verificar/[id]</code>
+                {" "}cuando alguien escanea el código.
+              </p>
+            </div>
+          </motion.div>
+
           {/* Preferences Section */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             className="p-6 rounded-2xl shadow-sm border"
