@@ -33,6 +33,14 @@ interface DocumentoState {
   notas: string;
 }
 
+interface CredencialesTerapeuta {
+  nombre_terapeuta: string | null;
+  cedula_profesional: string | null;
+  cedula_maestria: string | null;
+  email_clinica: string | null;
+  telefono_clinica: string | null;
+}
+
 interface GeneradorDocumentoModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -52,6 +60,7 @@ export function GeneradorDocumentoModal({
   const [loading, setLoading] = useState(false);
   const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
   const [pacientes, setPacientes] = useState<PacienteSelect[]>([]);
+  const [credenciales, setCredenciales] = useState<CredencialesTerapeuta | null>(null);
   const [selectedTipo, setSelectedTipo] = useState<Plantilla["tipo"] | "">("");
   
   const [formData, setFormData] = useState<DocumentoState>({
@@ -65,19 +74,33 @@ export function GeneradorDocumentoModal({
   useEffect(() => {
     if (isOpen) {
       loadPlantillas();
+      loadCredenciales();
       if (!paciente) {
         loadPacientes();
       }
       setSelectedTipo("");
-      setFormData({ 
+      setFormData({
         paciente_id: paciente?.id || "",
         paciente_nombre: paciente?.nombre_completo || "",
-        titulo: "", 
-        contenido: "", 
-        notas: "" 
+        titulo: "",
+        contenido: "",
+        notas: ""
       });
     }
   }, [isOpen, paciente]);
+
+  async function loadCredenciales() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const { data } = await supabase
+      .from("configuracion_branding")
+      .select("nombre_terapeuta, cedula_profesional, cedula_maestria, email_clinica, telefono_clinica")
+      .eq("terapeuta_id", session.user.id)
+      .single();
+
+    if (data) setCredenciales(data as CredencialesTerapeuta);
+  }
 
   async function loadPacientes() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -155,8 +178,15 @@ export function GeneradorDocumentoModal({
   // generatePDF: Renderizado NATIVO con jsPDF
   // Usa splitTextToSize() que GARANTIZA no cortar palabras
   // docId: UUID del documento, se embebe en el QR de verificación
+  // firma_hash: hash SHA-256 truncado, se muestra como sello textual
+  // qr_url: URL pública que codifica el QR
   // =====================================================
-  const generatePDF = async (content: string, docId: string) => {
+  const generatePDF = async (
+    content: string,
+    docId: string,
+    firma_hash: string,
+    qr_url: string,
+  ) => {
     const contentDoc = new jsPDF({
       orientation: "p",
       unit: "mm",
@@ -289,22 +319,65 @@ export function GeneradorDocumentoModal({
     }
 
     // =====================================================
-    // SELLO DIGITAL: QR de verificación en última página
-    // Se añade al contentDoc antes de combinar con membretada
+    // SELLO DIGITAL: QR + firma textual en última página
+    // QR a la derecha, credenciales y hash a la izquierda
     // =====================================================
     try {
       const QRCode = (await import("qrcode")).default;
-      const verifyUrl = `https://lilibauza-admin.web.app/verificar/${docId}`;
-      const qrDataUrl: string = await QRCode.toDataURL(verifyUrl, { width: 120, margin: 1 });
+      const qrDataUrl: string = await QRCode.toDataURL(qr_url, { width: 120, margin: 1 });
       const qrBase64 = qrDataUrl.replace("data:image/png;base64,", "");
       const qrSize = 22; // mm
       const qrX = pageWidth - mr - qrSize;
       const qrY = pageHeight - mb - qrSize - 2;
+
+      // QR en esquina inferior derecha
       contentDoc.addImage(qrBase64, "PNG", qrX, qrY, qrSize, qrSize);
       contentDoc.setFontSize(5.5);
       contentDoc.setFont("helvetica", "normal");
       contentDoc.setTextColor(130, 130, 130);
-      contentDoc.text("Sello Digital", qrX + qrSize / 2, pageHeight - mb + 2, { align: "center" });
+      contentDoc.text("Escanea para verificar", qrX + qrSize / 2, pageHeight - mb + 2, { align: "center" });
+
+      // Firma textual a la izquierda del QR
+      const sigX = ml;
+      let sigY = qrY + 4;
+
+      contentDoc.setFontSize(7);
+      contentDoc.setFont("helvetica", "bold");
+      contentDoc.setTextColor(80, 80, 80);
+
+      if (credenciales?.nombre_terapeuta) {
+        contentDoc.text(credenciales.nombre_terapeuta, sigX, sigY);
+        sigY += 3.5;
+      }
+
+      contentDoc.setFont("helvetica", "normal");
+      contentDoc.setFontSize(6.5);
+
+      const cedulas: string[] = [];
+      if (credenciales?.cedula_profesional) {
+        cedulas.push(`Cédula Profesional: ${credenciales.cedula_profesional}`);
+      }
+      if (credenciales?.cedula_maestria) {
+        cedulas.push(`Cédula Maestría: ${credenciales.cedula_maestria}`);
+      }
+      if (cedulas.length > 0) {
+        contentDoc.text(cedulas.join("   ·   "), sigX, sigY);
+        sigY += 3;
+      }
+
+      const contacto: string[] = [];
+      if (credenciales?.email_clinica) contacto.push(credenciales.email_clinica);
+      if (credenciales?.telefono_clinica) contacto.push(credenciales.telefono_clinica);
+      if (contacto.length > 0) {
+        contentDoc.text(contacto.join("  ·  "), sigX, sigY);
+        sigY += 3;
+      }
+
+      contentDoc.setFontSize(5.5);
+      contentDoc.setTextColor(150, 150, 150);
+      contentDoc.text(`ID: ${docId}`, sigX, sigY);
+      sigY += 2.5;
+      contentDoc.text(`Firma: ${firma_hash}`, sigX, sigY);
     } catch {
       // QR no crítico — continúa sin él si falla
     }
@@ -388,15 +461,39 @@ export function GeneradorDocumentoModal({
     setLoading(true);
 
     try {
-      // 1. Generar UUID del documento ANTES del PDF para embeber en QR
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("No session");
+
+      // 1. Generar UUID y fecha ISO ANTES del PDF (ambos entran al hash)
       const docId = crypto.randomUUID();
+      const fecha = new Date().toISOString();
 
-      // 2. Generar PDF con Branding, HTML y QR de verificación
-      const blob = await generatePDF(formData.contenido, docId);
+      // 2. Solicitar firma al servidor (SHA-256 con secret server-side)
+      const firmaResp = await fetch("/api/firma/firmar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          docId,
+          paciente_id: formData.paciente_id || null,
+          tipo: selectedTipo,
+          fecha,
+          terapeuta_id: session.user.id,
+        }),
+      });
+      if (!firmaResp.ok) {
+        const errData = await firmaResp.json().catch(() => ({}));
+        throw new Error(errData.error || "Error al firmar el documento");
+      }
+      const { firma_hash, qr_url } = (await firmaResp.json()) as {
+        firma_hash: string;
+        qr_url: string;
+      };
 
-      const fileExt = "pdf";
+      // 3. Generar PDF con QR + firma textual
+      const blob = await generatePDF(formData.contenido, docId, firma_hash, qr_url);
+
       const safeTitle = formData.titulo.replace(/[^a-z0-9]/gi, "_").toLowerCase();
-      const fileName = `${safeTitle}_${Date.now()}.${fileExt}`;
+      const fileName = `${safeTitle}_${Date.now()}.pdf`;
 
       const { error: uploadError } = await supabase.storage
         .from("documentos")
@@ -413,21 +510,21 @@ export function GeneradorDocumentoModal({
         .getPublicUrl(fileName);
       const publicUrl = urlData.publicUrl;
 
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) throw new Error("No session");
-
-        const { error: dbError } = await supabase
-          .from("documentos")
-          .insert({
-            id: docId,
-            paciente_id: formData.paciente_id || null,
-            tipo: selectedTipo,
-            titulo: formData.titulo,
-            contenido: formData.contenido,
-            storage_url: publicUrl,
-            notas: formData.notas,
-            terapeuta_id: session.user.id,
-          });
+      const { error: dbError } = await supabase
+        .from("documentos")
+        .insert({
+          id: docId,
+          paciente_id: formData.paciente_id || null,
+          tipo: selectedTipo,
+          titulo: formData.titulo,
+          contenido: formData.contenido,
+          storage_url: publicUrl,
+          notas: formData.notas,
+          terapeuta_id: session.user.id,
+          created_at: fecha,
+          firma_hash,
+          qr_url,
+        });
 
       if (dbError) throw dbError;
 
@@ -446,8 +543,8 @@ export function GeneradorDocumentoModal({
       title={paciente ? `Generar Documento para ${paciente.nombre_completo}` : "Generar Nuevo Documento"}
       size="xl"
     >
-      <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 gap-4">
+      <form onSubmit={handleSubmit} className="flex flex-col h-full gap-4">
+        <div className="flex-1 overflow-y-auto space-y-4">
           {paciente ? (
             <Input
               label="Paciente"
@@ -456,11 +553,22 @@ export function GeneradorDocumentoModal({
               readOnly
             />
           ) : (
-            <Input
-              label="Nombre del Paciente"
-              value={formData.paciente_nombre || ""}
-              onChange={(e) => setFormData({ ...formData, paciente_nombre: e.target.value })}
-              placeholder="Escribe el nombre del paciente..."
+            <Select
+              label="Paciente"
+              value={formData.paciente_id}
+              onChange={(e) => {
+                const id = e.target.value;
+                const p = pacientes.find((x) => x.id === id);
+                setFormData({
+                  ...formData,
+                  paciente_id: id,
+                  paciente_nombre: p?.nombre_completo || "",
+                });
+              }}
+              options={[
+                { value: "", label: "Selecciona un paciente..." },
+                ...pacientes.map((p) => ({ value: p.id, label: p.nombre_completo })),
+              ]}
               required
             />
           )}
@@ -480,7 +588,7 @@ export function GeneradorDocumentoModal({
           />
 
           {selectedTipo && (
-            <div className="p-3 rounded-lg flex items-center gap-2 mb-2" style={{ backgroundColor: colors.surface, borderLeft: `3px solid ${colors.primary}` }}>
+            <div className="p-3 rounded-lg flex items-center gap-2" style={{ backgroundColor: colors.surface, borderLeft: `3px solid ${colors.primary}` }}>
               <span>💡</span>
               <p className="text-sm" style={{ color: colors.text }}>
                 La plantilla para <strong>{selectedTipo}</strong> ha sido cargada y los datos del paciente han sido autocompletados. Puedes ajustar el texto libremente antes de generar el documento final.
@@ -497,13 +605,15 @@ export function GeneradorDocumentoModal({
             disabled={!selectedTipo}
           />
 
-          <EditorRico
-            label="Contenido del Documento"
-            value={formData.contenido}
-            onChange={(val) => setFormData({ ...formData, contenido: val })}
-            placeholder="Selecciona el tipo de documento para cargar la plantilla..."
-            disabled={!selectedTipo}
-          />
+          <div className="flex-1">
+            <EditorRico
+              label="Contenido del Documento"
+              value={formData.contenido}
+              onChange={(val) => setFormData({ ...formData, contenido: val })}
+              placeholder="Selecciona el tipo de documento para cargar la plantilla..."
+              disabled={!selectedTipo}
+            />
+          </div>
 
           <TextArea
             label="Notas internas (opcional, no se imprimirán)"
@@ -515,7 +625,7 @@ export function GeneradorDocumentoModal({
           />
         </div>
 
-        <div className="flex justify-end gap-3 mt-6">
+        <div className="flex justify-end gap-3 flex-shrink-0 border-t pt-4" style={{ borderColor: colors.border }}>
           <Button type="button" variant="ghost" onClick={onClose}>
             Cancelar
           </Button>

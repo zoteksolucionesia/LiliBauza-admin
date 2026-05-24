@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__notebooklm-mcp__notebook_create",
+      "mcp__notebooklm-mcp__refresh_auth",
+      "mcp__notebooklm-mcp__source_add",
+      "Bash(npm run *)",
+      "mcp__notebooklm-mcp__note",
+      "Bash(firebase deploy *)",
+      "Read(//c/Users/USUARIO/MisProyectos/Zotek/**)",
+      "Bash(cd \"c:\\\\\\\\Users\\\\\\\\USUARIO\\\\\\\\MisProyectos\\\\\\\\LiliBauza-admin\")",
+      "Bash(ls -la \"c:\\\\\\\\Users\\\\\\\\USUARIO\\\\\\\\MisProyectos\\\\\\\\LiliBauza-admin\\\\\\\\src\\\\\\\\components\\\\\\\\admin\\\\\\\\\")",
+      "Bash(tail -50 \"C:\\\\\\\\Users\\\\\\\\USUARIO\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\claude\\\\\\\\c--Users-USUARIO-MisProyectos-LiliBauza-admin\\\\\\\\953f3611-e419-4762-a63c-ab2e0d79f7cd\\\\\\\\tasks\\\\\\\\biz7sydab.output\")"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\USUARIO\\MisProyectos\\LiliBauza-admin\\src\\app\\verificar",
+      "c:\\Users\\USUARIO\\MisProyectos\\LiliBauza-admin\\src\\app\\admin\\pacientes"
+    ]
+  }
+}

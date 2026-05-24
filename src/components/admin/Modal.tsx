@@ -27,7 +27,7 @@ export function Modal({ isOpen, onClose, title, children, size = "lg" }: ModalPr
       style={{ backgroundColor: "rgba(0, 0, 0, 0.30)" }}
     >
       <div className={`w-full ${sizeClasses[size]} rounded-lg shadow-lg overflow-hidden flex flex-col`}
-        style={{ maxHeight: "90vh", backgroundColor: colors.surface }}
+        style={{ maxHeight: "95vh", backgroundColor: colors.surface }}
       >
         <div className="flex items-center justify-between p-4 border-b flex-shrink-0" style={{ borderColor: colors.border }}>
           <h2 className="text-xl font-semibold" style={{ color: colors.text }}>{title}</h2>
