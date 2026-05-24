@@ -10,12 +10,17 @@ export interface MetadatosFirma {
 
 const FIRMA_SECRET = process.env.FIRMA_SECRET || "lilibauza-default-dev-secret-change-in-prod";
 
+// Canoniza la fecha a ISO-8601 UTC con sufijo "Z" antes del hash.
+// Postgres TIMESTAMPTZ se serializa como "...+00:00" al leerse, mientras que
+// el cliente firma con `new Date().toISOString()` que produce "...Z". Sin
+// normalizar, los dos strings difieren y el SHA-256 no coincide.
 export function computarHash(meta: MetadatosFirma): string {
+  const fechaCanonica = new Date(meta.fecha).toISOString();
   const payload = [
     meta.docId,
     meta.paciente_id ?? "null",
     meta.tipo,
-    meta.fecha,
+    fechaCanonica,
     meta.terapeuta_id,
     FIRMA_SECRET,
   ].join("|");
