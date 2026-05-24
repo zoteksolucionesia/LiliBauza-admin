@@ -36,13 +36,18 @@ export default function AdminLogin() {
         className="max-w-md w-full rounded-2xl shadow-xl p-6"
         style={{ backgroundColor: colors.surface }}
       >
-        {/* Logo — plano, sin circulo */}
-        <div className="mb-2 flex justify-center">
-          <img
-            src="/logo.png"
-            alt="LiliBauza Logo"
-            className="w-44 h-44 object-contain"
-          />
+        {/* Logo */}
+        <div className="mb-8 flex justify-center">
+          <div
+            className="w-64 h-64 rounded-full flex items-center justify-center overflow-hidden"
+            style={{ backgroundColor: colors.surface, boxShadow: `0 8px 16px -4px rgba(0, 0, 0, 0.15)` }}
+          >
+            <img
+              src="/api/logo?v=6"
+              alt="LiliBauza Logo"
+              className="w-60 h-60 object-contain"
+            />
+          </div>
         </div>
 
         <div className="text-center mb-3">
@@ -159,10 +164,10 @@ export default function AdminLogin() {
         </div>
       </div>
 
-      {/* Zotek Signature — dentro del flujo, no fixed */}
-      <div className="absolute bottom-4 w-full flex justify-center opacity-70 hover:opacity-100 transition-opacity">
-        <a href="https://zotek.com.mx" target="_blank" rel="noopener noreferrer">
-          <img src="/images/logo_zotek_principal.svg" alt="Powered by Zotek" className="h-7 object-contain filter drop-shadow-sm" />
+      {/* Zotek Signature */}
+      <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+        <a href="https://zotek.com.mx" target="_blank" rel="noopener noreferrer" className="opacity-60 hover:opacity-100 transition-opacity">
+          <img src="/images/logo_zotek_principal.svg" alt="Powered by Zotek" className="h-6 object-contain" />
         </a>
       </div>
     </div>
