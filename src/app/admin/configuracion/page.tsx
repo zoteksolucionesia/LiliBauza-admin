@@ -36,6 +36,8 @@ export default function ConfiguracionPage() {
   const [cedulaMaestria, setCedulaMaestria] = useState("");
   const [emailClinica, setEmailClinica] = useState("");
   const [telefonoClinica, setTelefonoClinica] = useState("");
+  const [modeloIA, setModeloIA] = useState("gemini-2.0-flash-lite");
+  const [modeloIAInicial, setModeloIAInicial] = useState("gemini-2.0-flash-lite");
   const [credencialesIniciales, setCredencialesIniciales] = useState({
     nombre_terapeuta: "",
     cedula_profesional: "",
@@ -54,7 +56,7 @@ export default function ConfiguracionPage() {
       if (!session) return;
       const { data } = await supabase
         .from("configuracion_branding")
-        .select("nombre_terapeuta, cedula_profesional, cedula_maestria, email_clinica, telefono_clinica")
+        .select("nombre_terapeuta, cedula_profesional, cedula_maestria, email_clinica, telefono_clinica, modelo_ia")
         .eq("terapeuta_id", session.user.id)
         .single();
       if (cancelled || !data) return;
@@ -63,6 +65,8 @@ export default function ConfiguracionPage() {
       setCedulaMaestria(data.cedula_maestria ?? "");
       setEmailClinica(data.email_clinica ?? "");
       setTelefonoClinica(data.telefono_clinica ?? "");
+      setModeloIA(data.modelo_ia ?? "gemini-2.0-flash-lite");
+      setModeloIAInicial(data.modelo_ia ?? "gemini-2.0-flash-lite");
       setCredencialesIniciales({
         nombre_terapeuta: data.nombre_terapeuta ?? "",
         cedula_profesional: data.cedula_profesional ?? "",
@@ -86,6 +90,7 @@ export default function ConfiguracionPage() {
     localNombreClinica !== nombreClinica ||
     !!logoFile ||
     !!membretadaFile ||
+    modeloIA !== modeloIAInicial ||
     credencialesChanged();
 
   useEffect(() => {
@@ -159,6 +164,7 @@ export default function ConfiguracionPage() {
         cedula_maestria: cedulaMaestria || null,
         email_clinica: emailClinica || null,
         telefono_clinica: telefonoClinica || null,
+        modelo_ia: modeloIA,
         updated_at: new Date().toISOString()
       };
 
@@ -184,6 +190,7 @@ export default function ConfiguracionPage() {
         email_clinica: emailClinica,
         telefono_clinica: telefonoClinica,
       });
+      setModeloIAInicial(modeloIA);
 
       addNotification("Configuración guardada exitosamente", "success");
     } catch (error: any) {
@@ -380,6 +387,35 @@ export default function ConfiguracionPage() {
                       {preset.name}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t" style={{ borderColor: themeColors.primaryLight }}>
+                <label className="block text-sm font-medium mb-2" style={{ color: themeColors.text }}>
+                  🤖 Modelo de IA para interpretar tests
+                </label>
+                <select
+                  value={modeloIA}
+                  onChange={(e) => setModeloIA(e.target.value)}
+                  className="w-full px-3 py-2.5 border rounded-xl focus:outline-none focus:ring-2 transition-all"
+                  style={{
+                    borderColor: `${themeColors.primary}44`,
+                    backgroundColor: themeColors.background,
+                    color: themeColors.text,
+                  }}
+                >
+                  <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite — Gratis (rápido)</option>
+                  <option value="gemini-2.0-flash">Gemini 2.0 Flash — Gratis</option>
+                  <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite — Gratis</option>
+                  <option value="gemini-1.5-pro">Gemini 1.5 Pro — De pago (interpretaciones más precisas)</option>
+                </select>
+                <div className="mt-2 p-3 rounded-lg" style={{ backgroundColor: `${themeColors.primary}11` }}>
+                  <p className="text-xs leading-relaxed" style={{ color: themeColors.textMuted }}>
+                    De forma predeterminada el sistema usa <strong>modelos gratuitos de Gemini</strong>, suficientes para
+                    interpretaciones generales. Para análisis más detallados y precisos puedes seleccionar un
+                    <strong> modelo de pago (Gemini 1.5 Pro)</strong>. Si la IA no está disponible, se usa la
+                    interpretación por rangos del test.
+                  </p>
                 </div>
               </div>
 
