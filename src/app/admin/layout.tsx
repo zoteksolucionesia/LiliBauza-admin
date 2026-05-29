@@ -7,7 +7,7 @@ import { colors } from "@/lib/theme";
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  if (pathname === "/admin/login") {
+  if (pathname === "/admin/login" || pathname === "/admin/reset-password") {
     return <>{children}</>;
   }
 

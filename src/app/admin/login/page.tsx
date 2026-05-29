@@ -80,6 +80,13 @@ export default function AdminLogin() {
               <label className="block text-sm font-medium" style={{ color: colors.text }}>
                 Contraseña
               </label>
+              <a
+                href="/admin/reset-password"
+                className="text-sm font-medium hover:underline"
+                style={{ color: colors.primaryDark }}
+              >
+                ¿Olvidaste tu contraseña?
+              </a>
             </div>
             <div className="relative">
               <input
