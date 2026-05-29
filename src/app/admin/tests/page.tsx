@@ -11,13 +11,31 @@ import { ClipboardList, Plus, Trash2, Edit } from "lucide-react";
 
 import { colors } from "@/lib/theme";
 
-interface Pregunta {
-  id: string;
+interface OpcionObj {
   texto: string;
-  tipo: "escala" | "opcion_multiple" | "abierta";
-  opciones?: string[];
+  valor: number;
+}
+
+interface Pregunta {
+  id: string | number;
+  texto: string;
+  // Tests personalizados traen `tipo`; los predefinidos no (se infiere por `opciones`).
+  tipo?: "escala" | "opcion_multiple" | "abierta";
+  // Personalizados: string[]; predefinidos: {texto, valor}[].
+  opciones?: (string | OpcionObj)[];
   puntaje_min?: number;
   puntaje_max?: number;
+}
+
+// Normaliza las opciones de una pregunta a {label, value} sin importar el formato.
+// Predefinidos -> {label: texto, value: valor(number)}; personalizados -> {label, value: string}.
+function opcionesNormalizadas(p: Pregunta): { label: string; value: number | string }[] | null {
+  if (!p.opciones || p.opciones.length === 0) return null;
+  return p.opciones.map((o) =>
+    typeof o === "object" && o !== null
+      ? { label: o.texto, value: o.valor }
+      : { label: String(o), value: String(o) }
+  );
 }
 
 interface Test {
@@ -453,7 +471,7 @@ function TestBuilder({ onClose }: { onClose: () => void }) {
                       className="px-2 py-1 rounded text-sm flex items-center gap-1"
                       style={{ backgroundColor: colors.primaryLight, color: colors.primaryDark }}
                     >
-                      {opt}
+                      {typeof opt === "string" ? opt : opt.texto}
                       <button
                         type="button"
                         onClick={() => setCurrentPregunta({
@@ -587,7 +605,7 @@ function ApplyTestForm({ test, pacientes, addNotification, onClose }: {
   const [enviandoEmail, setEnviandoEmail] = useState(false);
   const [resultado, setResultado] = useState<{ id: string; puntaje: number; interpretacion: string; emailPaciente: string; nombrePaciente: string } | null>(null);
 
-  const handleRespuesta = (preguntaId: string, valor: any) => {
+  const handleRespuesta = (preguntaId: string | number, valor: any) => {
     setRespuestas((prev) => ({ ...prev, [preguntaId]: valor }));
   };
 
@@ -596,8 +614,10 @@ function ApplyTestForm({ test, pacientes, addNotification, onClose }: {
 
     test.preguntas?.forEach((pregunta) => {
       const respuesta = respuestas[pregunta.id];
-      if (respuesta !== undefined && pregunta.tipo === "escala") {
-        puntajeTotal += Number(respuesta);
+      // Suma cualquier respuesta numérica: escala (botones 0-N) y opciones
+      // tipo Likert de los predefinidos (se guarda el `valor` numérico).
+      if (typeof respuesta === "number") {
+        puntajeTotal += respuesta;
       }
     });
 
@@ -804,7 +824,7 @@ function ApplyTestForm({ test, pacientes, addNotification, onClose }: {
               {index + 1}. {pregunta.texto}
             </p>
 
-            {pregunta.tipo === "escala" && (
+            {pregunta.tipo === "escala" ? (
               <div className="flex gap-2 flex-wrap">
                 {Array.from({ length: (pregunta.puntaje_max || 10) + 1 }, (_, i) => i).map((num) => (
                   <button
@@ -821,27 +841,24 @@ function ApplyTestForm({ test, pacientes, addNotification, onClose }: {
                   </button>
                 ))}
               </div>
-            )}
-
-            {pregunta.tipo === "opcion_multiple" && (
+            ) : opcionesNormalizadas(pregunta) ? (
+              // Cubre opcion_multiple (personalizados) y opciones tipo Likert
+              // de los predefinidos ({texto, valor}). Guarda el `value` normalizado.
               <div className="space-y-2">
-                {pregunta.opciones?.map((opcion, idx) => (
+                {opcionesNormalizadas(pregunta)!.map((op, idx) => (
                   <label key={idx} className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
                       name={`pregunta_${pregunta.id}`}
-                      value={opcion}
-                      checked={respuestas[pregunta.id] === opcion}
-                      onChange={(e) => handleRespuesta(pregunta.id, e.target.value)}
+                      checked={respuestas[pregunta.id] === op.value}
+                      onChange={() => handleRespuesta(pregunta.id, op.value)}
                       className="w-4 h-4"
                     />
-                    <span style={{ color: colors.text }}>{opcion}</span>
+                    <span style={{ color: colors.text }}>{op.label}</span>
                   </label>
                 ))}
               </div>
-            )}
-
-            {pregunta.tipo === "abierta" && (
+            ) : (
               <textarea
                 value={respuestas[pregunta.id] || ""}
                 onChange={(e) => handleRespuesta(pregunta.id, e.target.value)}

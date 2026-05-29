@@ -18,6 +18,7 @@ interface Plantilla {
   id: string;
   tipo: string;
   contenido_base: string;
+  es_predefinido?: boolean;
 }
 
 interface PacienteSelect {
@@ -124,9 +125,9 @@ export function GeneradorDocumentoModal({
 
     const { data, error } = await supabase
       .from("plantillas_documentos")
-      .select("id, tipo, contenido_base")
-      .eq("terapeuta_id", session.user.id);
-      
+      .select("id, tipo, contenido_base, es_predefinido")
+      .or(`terapeuta_id.eq.${session.user.id},es_predefinido.eq.true`);
+
     if (!error && data) {
       setPlantillas(data as Plantilla[]);
     } else {
@@ -145,7 +146,9 @@ export function GeneradorDocumentoModal({
   const handleTipoChange = (tipo: string) => {
     setSelectedTipo(tipo as Plantilla["tipo"]);
 
-    const plantilla = plantillas.find((p) => p.tipo === tipo);
+    // Si existe copia propia del tipo, usarla; si no, la global predefinida.
+    const matches = plantillas.filter((p) => p.tipo === tipo);
+    const plantilla = matches.find((p) => !p.es_predefinido) || matches[0];
     const pNombreBuffer = paciente?.nombre_completo || pacientes.find(p => p.id === formData.paciente_id)?.nombre_completo || "";
     const pNombre = pNombreBuffer ? escapeHtml(pNombreBuffer) : "[NOMBRE DEL PACIENTE]";
 

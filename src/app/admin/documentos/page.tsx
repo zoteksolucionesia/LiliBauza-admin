@@ -27,6 +27,8 @@ interface Plantilla {
   tipo: string;
   contenido_base: string;
   updated_at: string;
+  es_predefinido?: boolean;
+  terapeuta_id?: string;
 }
 
 interface Documento {
@@ -86,13 +88,23 @@ export default function DocumentosPage() {
     const { data, error } = await supabase
       .from("plantillas_documentos")
       .select("*")
-      .eq("terapeuta_id", session.user.id)
+      .or(`terapeuta_id.eq.${session.user.id},es_predefinido.eq.true`)
       .order("tipo", { ascending: true });
 
     if (error) {
       addNotification("Error al cargar plantillas", "error");
     } else {
-      setPlantillas(data || []);
+      // Dedupe por tipo: si el terapeuta tiene una copia propia de un tipo,
+      // se muestra esa (editable); si no, la base global. Así no se duplican filas.
+      const porTipo = new Map<string, Plantilla>();
+      for (const p of (data || []) as Plantilla[]) {
+        const existente = porTipo.get(p.tipo);
+        // Preferir la propia (no predefinida) sobre la global.
+        if (!existente || (existente.es_predefinido && !p.es_predefinido)) {
+          porTipo.set(p.tipo, p);
+        }
+      }
+      setPlantillas(Array.from(porTipo.values()));
     }
   }
 
@@ -260,6 +272,15 @@ export default function DocumentosPage() {
           </span>
         );
       },
+    },
+    {
+      key: "es_predefinido",
+      label: "Origen",
+      render: (value: boolean) => (
+        <span className={`px-2 py-1 rounded text-xs ${value ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}>
+          {value ? "Global" : "Propia"}
+        </span>
+      ),
     },
     {
       key: "updated_at",
@@ -556,8 +577,8 @@ function PlantillaForm({ plantilla, onClose, onSuccess, onError }: PlantillaForm
     setLoading(true);
 
     try {
-      if (plantilla) {
-        // Update
+      if (plantilla && !plantilla.es_predefinido) {
+        // Editar plantilla propia → UPDATE en sitio
         const { error } = await supabase
           .from("plantillas_documentos")
           .update({
@@ -565,6 +586,22 @@ function PlantillaForm({ plantilla, onClose, onSuccess, onError }: PlantillaForm
             updated_at: new Date().toISOString(),
           })
           .eq("id", plantilla.id);
+
+        if (error) throw error;
+      } else if (plantilla && plantilla.es_predefinido) {
+        // Copy-on-edit: editar una plantilla GLOBAL no modifica la base;
+        // crea una copia privada para este terapeuta (es_predefinido=false).
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error("No session");
+
+        const { error } = await supabase
+          .from("plantillas_documentos")
+          .insert({
+            tipo: plantilla.tipo,
+            contenido_base: contenido,
+            terapeuta_id: session.user.id,
+            es_predefinido: false,
+          });
 
         if (error) throw error;
       } else {
