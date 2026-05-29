@@ -8,8 +8,19 @@ import { useRouter } from "next/navigation";
 import { DataTable, SearchBar, Modal, Button, Input, Select, TextArea, Header, NotificationManager } from "@/components/admin";
 import { motion } from "framer-motion";
 import { ClipboardList, Plus, Trash2, Edit } from "lucide-react";
+import { jsPDF } from "jspdf";
 
 import { colors } from "@/lib/theme";
+
+// Devuelve la etiqueta legible de una respuesta (texto de la opción elegida).
+function etiquetaRespuesta(p: Pregunta, valor: unknown): string {
+  const ops = opcionesNormalizadas(p);
+  if (ops) {
+    const encontrada = ops.find((o) => o.value === valor);
+    return encontrada ? encontrada.label : String(valor ?? "—");
+  }
+  return String(valor ?? "—");
+}
 
 interface OpcionObj {
   texto: string;
@@ -58,6 +69,7 @@ export default function TestsPage() {
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
   const [isApplyOpen, setIsApplyOpen] = useState(false);
   const [selectedTest, setSelectedTest] = useState<Test | null>(null);
+  const [editingTest, setEditingTest] = useState<Test | null>(null);
   const [notifications, setNotifications] = useState<Array<{ id: string; message: string; type: "success" | "error" | "info" }>>([]);
 
   const addNotification = (message: string, type: "success" | "error" | "info") => {
@@ -167,7 +179,7 @@ export default function TestsPage() {
             placeholder="Buscar test..."
             value={searchTerm}
             onChange={setSearchTerm}
-            onAdd={() => setIsBuilderOpen(true)}
+            onAdd={() => { setEditingTest(null); setIsBuilderOpen(true); }}
             addLabel="Crear Test"
           />
 
@@ -233,6 +245,17 @@ export default function TestsPage() {
                 >
                   👁️ Ver
                 </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setEditingTest(row);
+                    setIsBuilderOpen(true);
+                  }}
+                  title={row.es_predefinido ? "Editar crea una copia personal" : "Editar test"}
+                >
+                  ✏️ Editar
+                </Button>
                 {!row.es_predefinido && (
                   <Button
                     size="sm"
@@ -278,13 +301,16 @@ export default function TestsPage() {
       {/* Test Builder Modal */}
       <Modal
         isOpen={isBuilderOpen}
-        onClose={() => setIsBuilderOpen(false)}
-        title="Test Builder - Crear Test Personalizado"
+        onClose={() => { setIsBuilderOpen(false); setEditingTest(null); }}
+        title={editingTest ? `Editar Test: ${editingTest.nombre}` : "Test Builder - Crear Test Personalizado"}
         size="xl"
       >
         <TestBuilder
+          key={editingTest?.id || "nuevo"}
+          editingTest={editingTest}
           onClose={() => {
             setIsBuilderOpen(false);
+            setEditingTest(null);
             loadTests();
           }}
         />
@@ -316,23 +342,24 @@ export default function TestsPage() {
   );
 }
 
-function TestBuilder({ onClose }: { onClose: () => void }) {
+function TestBuilder({ editingTest, onClose }: { editingTest?: Test | null; onClose: () => void }) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    nombre: "",
-    descripcion: "",
-    interpretacion: "",
+    nombre: editingTest?.nombre || "",
+    descripcion: editingTest?.descripcion || "",
+    interpretacion: editingTest?.interpretacion || "",
   });
-  const [preguntas, setPreguntas] = useState<Pregunta[]>([]);
+  const [preguntas, setPreguntas] = useState<Pregunta[]>(editingTest?.preguntas || []);
   const [currentPregunta, setCurrentPregunta] = useState<Pregunta>({
     id: "",
     texto: "",
-    tipo: "escala",
+    tipo: "opcion_multiple",
     opciones: [],
     puntaje_min: 0,
     puntaje_max: 10,
   });
   const [opcionText, setOpcionText] = useState("");
+  const [opcionValor, setOpcionValor] = useState("0");
 
   const addPregunta = () => {
     if (!currentPregunta.texto.trim()) return;
@@ -354,11 +381,13 @@ function TestBuilder({ onClose }: { onClose: () => void }) {
 
   const addOpcion = () => {
     if (!opcionText.trim()) return;
+    // Guarda la opción como {texto, valor} para que sume al puntaje (formato Likert).
     setCurrentPregunta({
       ...currentPregunta,
-      opciones: [...(currentPregunta.opciones || []), opcionText],
+      opciones: [...(currentPregunta.opciones || []), { texto: opcionText, valor: Number(opcionValor) || 0 }],
     });
     setOpcionText("");
+    setOpcionValor("0");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -368,20 +397,42 @@ function TestBuilder({ onClose }: { onClose: () => void }) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error("No session");
 
-    const { error } = await supabase.from("tests").insert({
-      nombre: formData.nombre,
-      descripcion: formData.descripcion,
-      preguntas: preguntas,
-      interpretacion: formData.interpretacion,
-      es_predefinido: false,
-      terapeuta_id: session.user.id,
-      fecha_creacion: new Date().toISOString(),
-    });
+    let error;
+    if (editingTest && !editingTest.es_predefinido) {
+      // Editar un test propio → UPDATE en sitio.
+      ({ error } = await supabase
+        .from("tests")
+        .update({
+          nombre: formData.nombre,
+          descripcion: formData.descripcion,
+          preguntas: preguntas,
+          interpretacion: formData.interpretacion,
+        })
+        .eq("id", editingTest.id));
+    } else {
+      // Test nuevo, o copy-on-edit de un predefinido: crea una copia privada
+      // del terapeuta sin modificar la base compartida.
+      ({ error } = await supabase.from("tests").insert({
+        nombre: formData.nombre,
+        descripcion: formData.descripcion,
+        preguntas: preguntas,
+        interpretacion: formData.interpretacion,
+        es_predefinido: false,
+        terapeuta_id: session.user.id,
+        fecha_creacion: new Date().toISOString(),
+      }));
+    }
 
     if (error) {
       alert("Error al guardar: " + error.message);
     } else {
-      alert("Test creado exitosamente");
+      alert(
+        editingTest && editingTest.es_predefinido
+          ? "Se creó tu copia personal del test con los cambios"
+          : editingTest
+          ? "Test actualizado exitosamente"
+          : "Test creado exitosamente"
+      );
       onClose();
     }
 
@@ -451,14 +502,21 @@ function TestBuilder({ onClose }: { onClose: () => void }) {
             {currentPregunta.tipo === "opcion_multiple" && (
               <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: colors.text }}>
-                  Opciones de respuesta
+                  Opciones de respuesta (texto y valor de puntaje)
                 </label>
                 <div className="flex gap-2 mb-2">
                   <Input
                     value={opcionText}
                     onChange={(e) => setOpcionText(e.target.value)}
-                    placeholder="Ej: Nunca"
+                    placeholder="Texto (ej: Nunca)"
                     className="flex-1"
+                  />
+                  <Input
+                    type="number"
+                    value={opcionValor}
+                    onChange={(e) => setOpcionValor(e.target.value)}
+                    placeholder="Valor"
+                    className="w-24"
                   />
                   <Button type="button" onClick={addOpcion}>
                     Agregar
@@ -471,7 +529,7 @@ function TestBuilder({ onClose }: { onClose: () => void }) {
                       className="px-2 py-1 rounded text-sm flex items-center gap-1"
                       style={{ backgroundColor: colors.primaryLight, color: colors.primaryDark }}
                     >
-                      {typeof opt === "string" ? opt : opt.texto}
+                      {typeof opt === "string" ? opt : `${opt.texto} (${opt.valor})`}
                       <button
                         type="button"
                         onClick={() => setCurrentPregunta({
@@ -757,6 +815,80 @@ function ApplyTestForm({ test, pacientes, addNotification, onClose }: {
     }
   };
 
+  const descargarPDF = async () => {
+    if (!resultado) return;
+
+    const { data: { session } } = await supabase.auth.getSession();
+    let nombreClinica = "";
+    if (session) {
+      const { data: branding } = await supabase
+        .from("configuracion_branding")
+        .select("nombre_clinica")
+        .eq("terapeuta_id", session.user.id)
+        .single();
+      nombreClinica = branding?.nombre_clinica || "";
+    }
+
+    const doc = new jsPDF({ unit: "mm", format: "letter" });
+    const pageW = 215.9;
+    const ml = 20, mr = 20;
+    const maxW = pageW - ml - mr;
+    let y = 22;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(61, 41, 41);
+    doc.text(nombreClinica || "Resultados de Evaluación", ml, y);
+    y += 8;
+    doc.setDrawColor(212, 165, 165);
+    doc.line(ml, y, pageW - mr, y);
+    y += 10;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    [
+      `Test: ${test.nombre}`,
+      `Paciente: ${resultado.nombrePaciente || "—"}`,
+      `Fecha: ${new Date().toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "numeric" })}`,
+    ].forEach((line) => { doc.text(line, ml, y); y += 6; });
+    y += 2;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.text(`Puntaje total: ${resultado.puntaje}`, ml, y);
+    y += 11;
+
+    doc.setFontSize(12);
+    doc.text("Respuestas", ml, y); y += 7;
+    test.preguntas?.forEach((p, i) => {
+      const pregLines: string[] = doc.splitTextToSize(`${i + 1}. ${p.texto}`, maxW);
+      const respLines: string[] = doc.splitTextToSize(`→ ${etiquetaRespuesta(p, respuestas[p.id])}`, maxW - 6);
+      if (y + (pregLines.length + respLines.length) * 5 > 270) { doc.addPage(); y = 22; }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text(pregLines, ml, y); y += pregLines.length * 5;
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(90, 90, 90);
+      doc.text(respLines, ml + 4, y); y += respLines.length * 5 + 3;
+      doc.setTextColor(61, 41, 41);
+    });
+    y += 4;
+
+    if (y > 250) { doc.addPage(); y = 22; }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("Interpretación", ml, y); y += 7;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    (doc.splitTextToSize(resultado.interpretacion || "—", maxW) as string[]).forEach((line) => {
+      if (y > 272) { doc.addPage(); y = 22; }
+      doc.text(line, ml, y); y += 5;
+    });
+
+    const safe = (s: string) => s.replace(/[^a-z0-9]/gi, "_");
+    doc.save(`Resultado_${safe(test.nombre)}_${safe(resultado.nombrePaciente || "paciente")}.pdf`);
+  };
+
   // Pantalla de éxito con interpretación IA y opción de email
   if (resultado) {
     return (
@@ -776,11 +908,29 @@ function ApplyTestForm({ test, pacientes, addNotification, onClose }: {
           </p>
         </div>
 
-        <div className="flex gap-3 justify-end">
+        {/* Detalle de respuestas en pantalla */}
+        <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: colors.background }}>
+          <p className="font-semibold mb-3 text-sm" style={{ color: colors.text }}>Detalle de respuestas</p>
+          <div className="space-y-2">
+            {test.preguntas?.map((p, i) => (
+              <div key={p.id} className="text-sm flex justify-between gap-3 border-b pb-2" style={{ borderColor: colors.primaryLight }}>
+                <span style={{ color: colors.text }}>{i + 1}. {p.texto}</span>
+                <span className="font-medium whitespace-nowrap" style={{ color: colors.primary }}>
+                  {etiquetaRespuesta(p, respuestas[p.id])}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex gap-3 justify-end flex-wrap">
           <Button type="button" variant="ghost" onClick={onClose}>
             Cerrar
           </Button>
-          {resultado.emailPaciente ? (
+          <Button type="button" variant="secondary" onClick={descargarPDF}>
+            ⬇️ Descargar PDF
+          </Button>
+          {resultado.emailPaciente && (
             <Button
               type="button"
               onClick={enviarEmail}
@@ -788,10 +938,6 @@ function ApplyTestForm({ test, pacientes, addNotification, onClose }: {
             >
               {enviandoEmail ? "Enviando..." : `📧 Enviar a ${resultado.emailPaciente}`}
             </Button>
-          ) : (
-            <p className="text-sm self-center" style={{ color: colors.textMuted }}>
-              (El paciente no tiene email registrado)
-            </p>
           )}
         </div>
       </div>
