@@ -36,8 +36,8 @@ export default function ConfiguracionPage() {
   const [cedulaMaestria, setCedulaMaestria] = useState("");
   const [emailClinica, setEmailClinica] = useState("");
   const [telefonoClinica, setTelefonoClinica] = useState("");
-  const [modeloIA, setModeloIA] = useState("gemini-2.0-flash-lite");
-  const [modeloIAInicial, setModeloIAInicial] = useState("gemini-2.0-flash-lite");
+  const [modeloIA, setModeloIA] = useState("gemini-2.5-flash-lite");
+  const [modeloIAInicial, setModeloIAInicial] = useState("gemini-2.5-flash-lite");
   const [credencialesIniciales, setCredencialesIniciales] = useState({
     nombre_terapeuta: "",
     cedula_profesional: "",
@@ -65,8 +65,8 @@ export default function ConfiguracionPage() {
       setCedulaMaestria(data.cedula_maestria ?? "");
       setEmailClinica(data.email_clinica ?? "");
       setTelefonoClinica(data.telefono_clinica ?? "");
-      setModeloIA(data.modelo_ia ?? "gemini-2.0-flash-lite");
-      setModeloIAInicial(data.modelo_ia ?? "gemini-2.0-flash-lite");
+      setModeloIA(data.modelo_ia ?? "gemini-2.5-flash-lite");
+      setModeloIAInicial(data.modelo_ia ?? "gemini-2.5-flash-lite");
       setCredencialesIniciales({
         nombre_terapeuta: data.nombre_terapeuta ?? "",
         cedula_profesional: data.cedula_profesional ?? "",
@@ -404,16 +404,15 @@ export default function ConfiguracionPage() {
                     color: themeColors.text,
                   }}
                 >
-                  <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite — Gratis (rápido)</option>
-                  <option value="gemini-2.0-flash">Gemini 2.0 Flash — Gratis</option>
-                  <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite — Gratis</option>
-                  <option value="gemini-1.5-pro">Gemini 1.5 Pro — De pago (interpretaciones más precisas)</option>
+                  <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite — Gratis (rápido)</option>
+                  <option value="gemini-2.5-flash">Gemini 2.5 Flash — Gratis (más capaz)</option>
+                  <option value="gemini-2.5-pro">Gemini 2.5 Pro — De pago (interpretaciones más precisas)</option>
                 </select>
                 <div className="mt-2 p-3 rounded-lg" style={{ backgroundColor: `${themeColors.primary}11` }}>
                   <p className="text-xs leading-relaxed" style={{ color: themeColors.textMuted }}>
                     De forma predeterminada el sistema usa <strong>modelos gratuitos de Gemini</strong>, suficientes para
                     interpretaciones generales. Para análisis más detallados y precisos puedes seleccionar un
-                    <strong> modelo de pago (Gemini 1.5 Pro)</strong>. Si la IA no está disponible, se usa la
+                    <strong> modelo de pago (Gemini 2.5 Pro)</strong>. Si la IA no está disponible, se usa la
                     interpretación por rangos del test.
                   </p>
                 </div>

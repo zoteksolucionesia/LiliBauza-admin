@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 // Proveedor de IA configurable por variable de entorno.
 // AI_PROVIDER = "gemini" | "anthropic" (default: "anthropic")
-// - Gemini:   GEMINI_API_KEY    + GEMINI_MODEL    (default gemini-2.0-flash-lite)
+// - Gemini:   GEMINI_API_KEY    + GEMINI_MODEL    (default gemini-2.5-flash-lite)
 // - Anthropic: ANTHROPIC_API_KEY + ANTHROPIC_MODEL (default claude-haiku-4-5-20251001)
 export async function POST(req: NextRequest) {
   try {
@@ -65,7 +65,7 @@ Importante: sé conciso (máximo 3 párrafos), usa lenguaje clínico pero compre
       }
       const modelo = modeloTerapeuta?.startsWith("gemini")
         ? modeloTerapeuta
-        : process.env.GEMINI_MODEL || "gemini-2.0-flash-lite";
+        : process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: modelo });
       const result = await model.generateContent(prompt);
