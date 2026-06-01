@@ -180,5 +180,67 @@ Hitos consolidados de fases anteriores del desarrollo:
 *   (Opcional) Definir si un admin puede editar la plantilla/test base global desde la UI (hoy solo vía DB).
 
 ---
+
+### Sesión 2026-06-01 (14:05) — Integración del portal Zotek en Citas con SSO
+*   **Hilo (thread ID):** `6ce995b9-277c-4ae4-b70c-ebb2d40ea2d4` (continuación)
+*   **Rama:** `feat/paciente-expediente-fullpage`
+*   **Commits:** CRM `b9059ea` · Portal `c267561` (repo Zotek, rama `feature/admin-client-tabs-ui`)
+
+**Contexto y decisión de producto**
+*   La gestión de **citas, leads y horarios** vive **100% en el portal SaaS de Zotek** (`zotek-ia.web.app/portal`), cuyo backend usa otro proyecto Supabase (`bjtqcnecyknwgieijqgh`), **distinto** del CRM (`wxbbmzeoydtygqykkrdk`).
+*   El CRM **no registra nada** de citas: la pestaña `/admin/citas` ahora **embebe el portal** en un iframe; se eliminó la agenda nativa.
+*   Requisito del usuario: el terapeuta ya autenticado en el CRM **no debe volver a loguearse** en el portal (sin doble login), siempre que no comprometa la seguridad de ninguno de los dos sistemas.
+
+**1. Embed del portal (Fase 1)**
+*   [src/app/admin/citas/page.tsx](src/app/admin/citas/page.tsx) reescrito: iframe a `https://zotek-ia.web.app/portal/`, con `sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-popups-to-escape-sandbox"`, altura `calc(100vh - 140px)`. Se verificó que el portal **no** envía `X-Frame-Options`/CSP que bloqueen el iframe.
+*   Fallback: si no hay token SSO, abre el portal normal (pedirá su propio login).
+
+**2. SSO sin doble login (Fase 2)**
+*   **Diseño seguro:** token JWT HS256 **de corta duración (120 s)** firmado con un secreto **COMPARTIDO** `PORTAL_SSO_SECRET`, **distinto** del `SECRET_KEY` interno del portal. Identidad por **email**. Se descartó la opción insegura de "email en la URL".
+*   **CRM** — nuevo endpoint [src/app/api/portal-token/route.ts](src/app/api/portal-token/route.ts): valida la sesión Supabase del terapeuta (`getUser()`), firma `{ email, exp: now+120 }` y lo devuelve. El iframe lo recibe vía `?sso=<token>`.
+*   **Portal** — nuevo endpoint `POST /api/auth/sso` en `functions/src/main.py`: decodifica el token con `PORTAL_SSO_SECRET`, resuelve rol (admin si está en `ADMIN_EMAILS_EXTRA`, si no `client`), busca el cliente por email y emite el `access_token` interno normal. `www/portal/portal.js` detecta `?sso=` en `init()` (ahora `async`), llama al endpoint, guarda el token en `localStorage` y entra directo al dashboard, limpiando el query string con `replaceState`.
+
+**3. Infra / despliegue**
+*   `PORTAL_SSO_SECRET` documentado en [.env.example](.env.example) e inyectado en Cloud Run vía `npm run deploy` (revisión `ssrlilibauzaadmin-00043-69h`). En el portal va en su `functions/.env` (debe usar **fin de línea LF**; un CRLF en esa línea rompió el parseo).
+
+**4. Bug resuelto durante las pruebas**
+*   Tres fallos encadenados: (a) `Add-Content` concatenó el secreto sin salto de línea; (b) CRLF en la línea del secreto; (c) **falso negativo**: mi prueba en PowerShell usó `Get-Date -UFormat %s` (hora **local**, UTC-6), generando un `exp` ~6 h en el pasado → "Signature has expired". El código real del CRM usa `Date.now()` (UTC) y funciona. Verificado: `morentinomar@gmail.com` entra como **admin** sin login.
+
+**Verificación E2E:** `https://lilibauza-admin.web.app/admin/citas` carga el **dashboard del portal directamente**, sin pedir login (confirmado por el usuario).
+
+**Pendientes / hallazgos:**
+*   `lilibauza@gmail.com` **no está registrado como cliente** en el SaaS → `403`. Cuando Liliana use su email, hay que darla de alta en el portal.
+*   🔒 `PORTAL_SSO_SECRET` quedó visible en el chat de la sesión → conviene **rotarlo** (cambiarlo idéntico en ambos `.env` y redesplegar).
+*   🎨 Integración visual del portal embebido → **implementada** (ver sesión 14:14).
+
+---
+
+### Sesión 2026-06-01 (14:14) — Integración visual del portal embebido (acento CRM + fondo SaaS)
+*   **Rama:** `feat/paciente-expediente-fullpage`
+*   **Repos tocados:** CRM (`LiliBauza-admin`) y Portal (`ZotekSolucionesIA`, frontend `www/portal`).
+
+**Decisión de diseño (autorizada por el usuario):** separar el color por su función:
+*   **Acentos / elementos interactivos** (botones, nav activo, foco, KPIs, Horarios) → **color de branding del terapeuta del CRM** → el portal se siente parte del CRM.
+*   **Fondos / degradados / cabeceras** → **estética violeta-cian del SaaS** (`#7c3aed` → `#0891b2`) del rediseño de `/cita/` de la semana pasada.
+*   Alcance: la paleta violeta-cian es **global** (también en el portal standalone); el acento del CRM solo aplica **al embeber**. El tema (claro/oscuro) del portal embebido **sigue al del CRM**.
+
+**Cambio en el CRM** ([src/app/admin/citas/page.tsx](src/app/admin/citas/page.tsx)):
+*   El iframe ahora pasa `accent=<color>` (leído de la CSS var `--color-primary`, hex del branding) y `theme=<dark|light>` (según `documentElement.classList.contains('dark')`). Se añade tanto al URL con SSO como al de fallback.
+
+**Cambios en el Portal** (documentados en detalle en su `Bitacora.md`): `portal.css` (paleta `--primary` `#6C63FF`→`#7c3aed`, `--accent-cyan`, `--brand-gradient`, `--primary-dim` con `color-mix`, fondo SaaS sutil), `index.html` (`#6C63FF` inline → `var(--primary)`), `portal.js` (`init()` lee `?accent`/`?theme`).
+
+**No** toca backend ni el flujo SSO. Pendiente de **desplegar** el CRM: `npm run deploy` (el portal ya se desplegó, ver abajo).
+
+---
+
+### Sesión 2026-06-01 (15:32) — Estilo del portal alineado a la marca real Zotek (lado portal; CRM sin cambios nuevos)
+*   **Contexto:** tras la integración visual (14:14), el usuario comparó el portal con el **landing** `zotek-ia.web.app` y no coincidían. El trabajo de afinado fue **en el repo del portal** (`ZotekSolucionesIA`), documentado en detalle en su `Bitacora.md` (entrada 15:32). Aquí solo se registra lo relevante para el CRM.
+*   **Hallazgo importante:** la confusión inicial era porque **los cambios del portal no estaban desplegados** — el usuario veía la versión vieja. El portal se desplegó con `firebase deploy --only hosting` (proyecto `zotek-ia`).
+*   **Correcciones de estilo en el portal:** paleta a los tokens exactos del landing (`www/style.css`): fondo slate `#0f172a`, **acento CYAN `#00e5ff`** (no violeta), **botones claros** (no violetas), **blobs** cyan/violeta difuminados de fondo (glassmorphism), y **efecto "linterna"** (luz que sigue el cursor) en las tarjetas.
+*   **Impacto en el CRM:** **ninguno nuevo de código.** Sigue vigente lo del 14:14: `src/app/admin/citas/page.tsx` pasa `accent=<--color-primary>` y `theme=<dark|light>` al iframe. Nota de interacción: el portal ahora usa **botones claros** (ya no se tiñen con el acento del CRM); el acento del CRM sí tiñe **nav/links/iconos** del portal embebido, mientras que **el fondo violeta-cian de Zotek se mantiene** siempre.
+*   **Pendiente CRM:** desplegar con `npm run deploy` para que el iframe pase `accent`/`theme` en producción (hoy el portal standalone ya luce la marca Zotek; el embed tomará el acento del terapeuta tras este deploy).
+
+---
 *Generado y actualizado por Antigravity (IA Coding Assistant) — 29 de Mayo, 2026*
+*Actualizado por Claude Code (Opus 4.8) — 1 de Junio, 2026, 15:32*
 

@@ -21,6 +21,18 @@ export default function CitasPage() {
 
   useEffect(() => {
     let cancelled = false;
+
+    // El portal hereda la identidad visual del CRM: el color de branding del
+    // terapeuta (acento) y el modo claro/oscuro. El fondo violeta-cian es del SaaS.
+    const brandingParams = () => {
+      const accent = getComputedStyle(document.documentElement)
+        .getPropertyValue("--color-primary").trim();
+      const theme = document.documentElement.classList.contains("dark") ? "dark" : "light";
+      const parts: string[] = [`theme=${theme}`];
+      if (/^#[0-9a-fA-F]{6}$/.test(accent)) parts.push(`accent=${encodeURIComponent(accent)}`);
+      return parts.join("&");
+    };
+
     (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -34,14 +46,15 @@ export default function CitasPage() {
         });
         const data = await resp.json();
         if (cancelled) return;
+        const branding = brandingParams();
         if (!resp.ok || !data.token) {
           // Sin SSO disponible, abrimos el portal igual (pedirá su propio login).
-          setIframeSrc(PORTAL_BASE_URL);
+          setIframeSrc(`${PORTAL_BASE_URL}?${branding}`);
           return;
         }
-        setIframeSrc(`${PORTAL_BASE_URL}?sso=${encodeURIComponent(data.token)}`);
+        setIframeSrc(`${PORTAL_BASE_URL}?sso=${encodeURIComponent(data.token)}&${branding}`);
       } catch {
-        if (!cancelled) setIframeSrc(PORTAL_BASE_URL);
+        if (!cancelled) setIframeSrc(`${PORTAL_BASE_URL}?${brandingParams()}`);
       }
     })();
     return () => { cancelled = true; };
