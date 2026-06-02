@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Header } from "@/components/admin";
 import { colors } from "@/lib/theme";
@@ -13,11 +13,42 @@ import { useAuth } from "@/hooks/useAuth";
 // sin volver a loguearse: pedimos un token SSO firmado a /api/portal-token y lo
 // pasamos al portal vía ?sso=<token>.
 const PORTAL_BASE_URL = "https://zotek-ia.web.app/portal/";
+const PORTAL_ORIGIN = "https://zotek-ia.web.app";
 
 export default function CitasPage() {
   useAuth();
   const [iframeSrc, setIframeSrc] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Reenvía el tema (claro/oscuro) y el acento actuales del CRM al portal embebido.
+  // Se usa al cargar el iframe y cada vez que el terapeuta alterna el modo oscuro.
+  const postBrandToPortal = useCallback(() => {
+    const win = iframeRef.current?.contentWindow;
+    if (!win) return;
+    const accent = getComputedStyle(document.documentElement)
+      .getPropertyValue("--color-primary").trim();
+    const theme = document.documentElement.classList.contains("dark") ? "dark" : "light";
+    win.postMessage(
+      {
+        type: "zotek-brand",
+        theme,
+        accent: /^#[0-9a-fA-F]{6}$/.test(accent) ? accent : undefined,
+      },
+      PORTAL_ORIGIN,
+    );
+  }, []);
+
+  // Observa cambios de clase/estilo en <html> (toggle de modo oscuro o cambio de
+  // acento) y los propaga al portal en vivo, sin recargar el iframe.
+  useEffect(() => {
+    const observer = new MutationObserver(() => postBrandToPortal());
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "style"],
+    });
+    return () => observer.disconnect();
+  }, [postBrandToPortal]);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,6 +72,7 @@ export default function CitasPage() {
           return;
         }
         const resp = await fetch("/api/portal-token", {
+          method: "POST",
           headers: { Authorization: `Bearer ${session.access_token}` },
           cache: "no-store",
         });
@@ -78,12 +110,14 @@ export default function CitasPage() {
           </div>
         ) : (
           <iframe
+            ref={iframeRef}
             src={iframeSrc}
             title="Portal de Citas Zotek"
             className="w-full h-full rounded-xl border"
             style={{ borderColor: `${colors.primary}33`, minHeight: "calc(100vh - 140px)" }}
             sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-popups-to-escape-sandbox"
             referrerPolicy="no-referrer-when-downgrade"
+            onLoad={postBrandToPortal}
           />
         )}
       </div>
